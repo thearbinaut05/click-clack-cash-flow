@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -35,19 +36,12 @@
     --radius: 0.5rem;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -97,5 +91,39 @@
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  .game-title {
+    @apply font-extrabold text-transparent bg-clip-text bg-glitch-gradient;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  }
+  
+  .game-button {
+    @apply relative rounded-xl font-bold tracking-wide shadow-lg transition-all 
+           active:scale-95 active:shadow-sm;
+  }
+  
+  .game-button-primary {
+    @apply game-button bg-game-orange text-white border-b-4 border-orange-700
+           hover:bg-game-orange/90 active:border-b-0 active:translate-y-1;
+  }
+  
+  .game-button-glitch {
+    @apply game-button bg-gradient-to-r from-game-purple to-game-pink text-white border-b-4 border-purple-700
+           hover:from-game-bright-purple hover:to-game-pink active:border-b-0 active:translate-y-1;
+  }
+  
+  .game-card {
+    @apply bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl;
+  }
+  
+  .game-counter {
+    @apply inline-flex items-center gap-1 bg-black/30 text-white rounded-full px-3 py-1 text-sm font-bold;
+  }
+  
+  .bubble {
+    @apply absolute rounded-full bg-white/30 animate-bubble-float;
   }
 }
