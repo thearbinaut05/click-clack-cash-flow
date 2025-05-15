@@ -3,9 +3,9 @@ import React from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { 
   BadgeDollarSign, 
-  MousePointerClick, 
+  MousePointer, 
   TrendingUp, 
-  Ad
+  Monitor
 } from 'lucide-react';
 
 const StatsSection: React.FC = () => {
@@ -37,7 +37,7 @@ const StatsSection: React.FC = () => {
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-black/20 rounded-lg p-3">
           <h3 className="text-white text-sm mb-2 flex items-center">
-            <MousePointerClick className="w-4 h-4 mr-1" />
+            <MousePointer className="w-4 h-4 mr-1" />
             Game Stats
           </h3>
           
@@ -63,7 +63,7 @@ const StatsSection: React.FC = () => {
         
         <div className="bg-black/20 rounded-lg p-3">
           <h3 className="text-white text-sm mb-2 flex items-center">
-            <Ad className="w-4 h-4 mr-1" />
+            <Monitor className="w-4 h-4 mr-1" />
             Ad Metrics
           </h3>
           

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { useGame } from '@/contexts/GameContext';
-import { BadgeDollarSign, Click } from 'lucide-react';
+import { BadgeDollarSign, Clock } from 'lucide-react';
 
 const GameHeader: React.FC = () => {
   const { coins, energy, gems, level, tapCount } = useGame();
@@ -16,7 +16,7 @@ const GameHeader: React.FC = () => {
             <span>{level}</span>
           </div>
           <div className="game-counter">
-            <Click className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
             <span>{tapCount}</span>
           </div>
         </div>
