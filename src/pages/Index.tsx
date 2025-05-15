@@ -11,13 +11,13 @@ import { motion } from 'framer-motion';
 const Index = () => {
   return (
     <GameProvider>
-      <div className="min-h-screen bg-game-deep-blue overflow-hidden">
+      <div className="min-h-screen bg-gradient-to-b from-game-deep-blue to-[#09152d] overflow-hidden">
         <div className="container max-w-md mx-auto px-4 py-6">
           {/* Background Bubbles */}
-          {Array.from({ length: 5 }).map((_, i) => (
+          {Array.from({ length: 12 }).map((_, i) => (
             <motion.div 
               key={i}
-              className="fixed w-8 h-8 rounded-full bg-white/5"
+              className="fixed rounded-full bg-white/5"
               initial={{ x: Math.random() * 100 - 50, y: -20, opacity: 0.7 }}
               animate={{ 
                 y: [Math.random() * -100, window.innerHeight + 100],
@@ -31,17 +31,37 @@ const Index = () => {
               }}
               style={{ 
                 left: `${Math.random() * 100}%`,
-                width: `${Math.random() * 30 + 10}px`,
-                height: `${Math.random() * 30 + 10}px`,
+                width: `${Math.random() * 30 + 5}px`,
+                height: `${Math.random() * 30 + 5}px`,
+                filter: 'blur(1px)',
               }}
             />
           ))}
+          
+          {/* Light rays */}
+          <div className="fixed inset-0 pointer-events-none overflow-hidden">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div 
+                key={i}
+                className="absolute bg-white/5"
+                style={{
+                  width: '200px',
+                  height: '100vh',
+                  left: `${i * 33 + 10}%`,
+                  transform: `rotate(${15 + i * 5}deg)`,
+                  transformOrigin: 'top center',
+                  filter: 'blur(8px)'
+                }}
+              />
+            ))}
+          </div>
           
           {/* Game Interface */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
+            className="relative z-10"
           >
             <GameHeader />
             <TapArea />

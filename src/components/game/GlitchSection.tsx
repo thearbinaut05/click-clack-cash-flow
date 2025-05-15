@@ -11,7 +11,16 @@ const GlitchSection: React.FC = () => {
       <h2 className="font-bold text-xl text-white mb-4">Glitch Vault</h2>
       
       <div className="relative w-full h-24 rounded-xl flex items-center justify-center overflow-hidden">
+        {/* Background */}
         <div className={`absolute inset-0 ${glitchMode ? 'bg-gradient-to-r from-game-pink to-game-purple animate-pulse' : 'bg-gradient-to-r from-game-purple/50 to-game-deep-blue/70'}`} />
+        
+        {/* Grid overlay */}
+        <div className="absolute inset-0 opacity-10" 
+             style={{
+               backgroundImage: 'linear-gradient(0deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255, 255, 255, .05) 25%, rgba(255, 255, 255, .05) 26%, transparent 27%, transparent 74%, rgba(255, 255, 255, .05) 75%, rgba(255, 255, 255, .05) 76%, transparent 77%, transparent)',
+               backgroundSize: '50px 50px'
+             }}
+        />
         
         {/* Animated rings */}
         <motion.div 

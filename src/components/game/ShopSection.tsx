@@ -48,11 +48,27 @@ const ShopSection: React.FC = () => {
   const [activeTab, setActiveTab] = useState('upgrades');
   
   return (
-    <div className="game-card p-4 mt-4">
-      <h2 className="font-bold text-xl text-white mb-4">Marketplace</h2>
+    <div className="game-card p-4 mt-4 relative overflow-hidden">
+      {/* Water-like background elements */}
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div 
+            key={i}
+            className="absolute bg-white/10 w-full h-8"
+            style={{
+              top: `${i * 30 + 20}%`,
+              transform: 'rotate(-5deg) translateX(-10px)',
+              animation: `float ${3 + i * 0.5}s infinite ease-in-out alternate`,
+              animationDelay: `${i * 0.7}s`
+            }}
+          />
+        ))}
+      </div>
       
-      <Tabs defaultValue="upgrades" className="w-full" onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-2 mb-4">
+      <h2 className="font-bold text-xl text-white mb-4 relative z-10">Marketplace</h2>
+      
+      <Tabs defaultValue="upgrades" className="w-full relative z-10" onValueChange={setActiveTab}>
+        <TabsList className="w-full grid grid-cols-2 mb-4 bg-black/30">
           <TabsTrigger value="upgrades" className="data-[state=active]:bg-game-orange">Upgrades</TabsTrigger>
           <TabsTrigger value="nfts" className="data-[state=active]:bg-game-purple">NFT Collection</TabsTrigger>
         </TabsList>
@@ -62,7 +78,7 @@ const ShopSection: React.FC = () => {
             {upgrades.map(upgrade => (
               <div 
                 key={upgrade.id} 
-                className="bg-black/20 rounded-lg p-3 cursor-pointer hover:bg-black/30 transition-colors"
+                className="bg-black/20 rounded-lg p-3 cursor-pointer hover:bg-black/30 transition-colors backdrop-blur-sm border border-white/10"
                 onClick={() => buyUpgrade(upgrade)}
               >
                 <div className="flex justify-between items-start mb-2">
@@ -87,16 +103,16 @@ const ShopSection: React.FC = () => {
             {nftItems.map(nft => {
               const isSelected = selectedNFT?.id === nft.id;
               const rarityColors = {
-                common: 'bg-gray-500',
-                rare: 'bg-game-teal',
-                epic: 'bg-game-purple',
-                legendary: 'bg-gradient-to-r from-game-yellow to-game-orange',
+                common: 'bg-gradient-to-br from-gray-500/90 to-gray-600/90',
+                rare: 'bg-gradient-to-br from-game-teal/90 to-[#1a7f8a]/90',
+                epic: 'bg-gradient-to-br from-game-purple/90 to-[#6931c7]/90',
+                legendary: 'bg-gradient-to-r from-game-yellow/90 to-game-orange/90',
               };
               
               return (
                 <div 
                   key={nft.id} 
-                  className={`${rarityColors[nft.rarity]} rounded-lg p-3 cursor-pointer transition-all
+                  className={`${rarityColors[nft.rarity]} rounded-lg p-3 cursor-pointer transition-all backdrop-blur-sm border border-white/20
                              ${isSelected ? 'ring-2 ring-white' : 'hover:brightness-110'}`}
                   onClick={() => selectNFT(nft)}
                 >

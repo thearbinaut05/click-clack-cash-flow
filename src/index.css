@@ -91,13 +91,14 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
   }
 }
 
 @layer components {
   .game-title {
     @apply font-extrabold text-transparent bg-clip-text bg-glitch-gradient;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    text-shadow: 0 2px 10px rgba(236, 72, 153, 0.4), 0 0 5px rgba(139, 92, 246, 0.3);
   }
   
   .game-button {
@@ -113,17 +114,34 @@
   .game-button-glitch {
     @apply game-button bg-gradient-to-r from-game-purple to-game-pink text-white border-b-4 border-purple-700
            hover:from-game-bright-purple hover:to-game-pink active:border-b-0 active:translate-y-1;
+    box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), 0 0 30px rgba(139, 92, 246, 0.3);
   }
   
   .game-card {
     @apply bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
   }
   
   .game-counter {
-    @apply inline-flex items-center gap-1 bg-black/30 text-white rounded-full px-3 py-1 text-sm font-bold;
+    @apply inline-flex items-center gap-1 bg-black/30 text-white rounded-full px-3 py-1 text-sm font-bold border border-white/10;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
   }
   
   .bubble {
-    @apply absolute rounded-full bg-white/30 animate-bubble-float;
+    @apply absolute rounded-full bg-white/30 animate-bubble-float pointer-events-none;
+    filter: blur(0.5px);
   }
+}
+
+/* Additional animations */
+@keyframes float {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+  100% { transform: translateY(0); }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.7); }
+  100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); }
 }

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { motion } from 'framer-motion';
-import { Mouse, MousePointerClick } from 'lucide-react';
+import { MousePointerClick } from 'lucide-react';
 
 // Component for coin/bubble animations
 const CoinEffect: React.FC<{ x: number; y: number; }> = ({ x, y }) => {
@@ -69,22 +69,41 @@ const TapArea: React.FC = () => {
   };
   
   return (
-    <div className="relative w-full h-72 sm:h-96 overflow-hidden">
+    <div className="relative w-full h-80 overflow-hidden rounded-3xl border border-white/10">
       {/* Decorative bubbles */}
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 15 }).map((_, i) => (
         <Bubble key={i} delay={i * 0.3} />
       ))}
     
       {/* Tap area */}
       <div 
-        className={`relative w-full h-full flex items-center justify-center rounded-2xl overflow-hidden 
-                   ${glitchMode ? 'animate-glitch bg-gradient-to-r from-game-purple to-game-pink' : 'bg-ocean-gradient'}`}
+        className={`relative w-full h-full flex items-center justify-center rounded-3xl overflow-hidden 
+                   ${glitchMode ? 'animate-glitch bg-gradient-to-r from-game-purple to-game-pink' : 'bg-gradient-to-br from-game-deep-blue to-[#0d1a3a]'}`}
         onClick={onTap}
       >
         {/* Visual effects for each tap */}
         {effects.map(effect => (
           <CoinEffect key={effect.id} x={effect.x} y={effect.y} />
         ))}
+        
+        {/* Underwater light rays */}
+        <div className="absolute inset-0 overflow-hidden opacity-30">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div 
+              key={i}
+              className="absolute bg-white/20 rotate-45"
+              style={{
+                width: '30px',
+                height: '200%',
+                top: '-50%',
+                left: `${i * 22 + 5}%`,
+                transform: `rotate(${30 + i * 10}deg)`,
+                animation: `float ${5 + i * 0.5}s infinite ease-in-out`,
+                animationDelay: `${i * 0.5}s`
+              }}
+            />
+          ))}
+        </div>
         
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <MousePointerClick 
@@ -96,7 +115,7 @@ const TapArea: React.FC = () => {
           </div>
           
           {energy <= 0 && !glitchMode && (
-            <div className="absolute inset-0 bg-black/70 flex items-center justify-center pointer-events-none">
+            <div className="absolute inset-0 bg-black/70 flex items-center justify-center pointer-events-none backdrop-blur-sm">
               <div className="text-white text-center px-4">
                 <p className="text-xl font-bold mb-2">Out of Energy!</p>
                 <p>Wait for energy to regenerate...</p>
