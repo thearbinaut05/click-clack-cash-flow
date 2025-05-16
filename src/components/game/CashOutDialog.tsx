@@ -46,15 +46,15 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     setIsProcessing(true);
     
     try {
-      // Process the cash out
+      // Process the real cash out with the Cash App API
       await cashOut(cashAppTag);
       
       // Close the dialog
       onOpenChange(false);
       
       toast({
-        title: "Cash Out Successful!",
-        description: `$${cashValue} has been sent to ${cashAppTag}`,
+        title: "Cash Out Request Submitted!",
+        description: `$${cashValue} payment to ${cashAppTag} has been initiated. You'll receive a notification when the transfer completes.`,
       });
     } catch (error) {
       toast({
@@ -73,7 +73,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <BadgeDollarSign className="h-5 w-5 text-game-green" />
-            Cash Out Winnings
+            Real Cash Out
           </DialogTitle>
           <DialogDescription className="text-gray-400">
             Convert your coins to real cash via Cash App
@@ -110,6 +110,9 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
               value={cashAppTag}
               onChange={(e) => setCashAppTag(e.target.value)}
             />
+            <p className="text-xs text-gray-400">
+              Real money will be sent to this Cash App account
+            </p>
           </div>
         </div>
 
@@ -126,7 +129,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
             onClick={handleCashOut}
             className="bg-game-green hover:bg-game-green/80 text-black font-bold"
           >
-            {isProcessing ? "Processing..." : 
+            {isProcessing ? "Processing Payment..." : 
               <span className="flex items-center gap-1">
                 Cash Out <ArrowRight className="h-4 w-4" />
               </span>

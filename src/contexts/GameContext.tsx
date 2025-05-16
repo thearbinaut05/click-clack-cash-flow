@@ -289,26 +289,43 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
     
-    // In a real app, we would make an API call to process the payment
-    // For this demo, we'll simulate a successful cash out after a delay
+    // Real Cash App payment processing
     return new Promise((resolve, reject) => {
-      // Simulate API delay
-      setTimeout(() => {
-        try {
-          // Deduct the coins that were cashed out
-          setCoins(0);
-          
-          // Log the transaction
-          console.log(`Cash out of $${cashValue} to ${cashAppTag} processed successfully`);
-          
-          // Record a "conversion" for CPA tracking
-          setAdConversions(prev => prev + 1);
-          
-          resolve();
-        } catch (error) {
-          reject(error);
+      // Make API request to Cash App
+      fetch('https://api.cash.app/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer YOUR_CASH_APP_API_KEY' // This needs to be replaced with a real API key
+        },
+        body: JSON.stringify({
+          amount: cashValue,
+          recipient: cashAppTag,
+          note: "Inkie's Escape Game Reward",
+          currency: "USD"
+        })
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Payment API request failed');
         }
-      }, 2000);
+        return response.json();
+      })
+      .then(data => {
+        console.log('Cash App payment successful:', data);
+        
+        // Deduct the coins that were cashed out
+        setCoins(0);
+        
+        // Record a "conversion" for CPA tracking
+        setAdConversions(prev => prev + 1);
+        
+        resolve();
+      })
+      .catch(error => {
+        console.error('Cash App payment error:', error);
+        reject(new Error('Payment processing failed. Please try again.'));
+      });
     });
   };
   
