@@ -15,7 +15,7 @@ interface CashOutDialogProps {
 
 const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => {
   const { coins, cashOut } = useGame();
-  const [cashAppTag, setCashAppTag] = useState('');
+  const [email, setEmail] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Calculate the cash value (100 coins = $1)
@@ -25,19 +25,19 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
   const canCashOut = coins >= 100;
 
   const handleCashOut = async () => {
-    if (!cashAppTag) {
+    if (!email) {
       toast({
         title: "Error",
-        description: "Please enter your $Cashtag",
+        description: "Please enter your email address",
         variant: "destructive",
       });
       return;
     }
 
-    if (!cashAppTag.startsWith('$')) {
+    if (!email.includes('@')) {
       toast({
         title: "Error",
-        description: "Your $Cashtag must start with $",
+        description: "Please enter a valid email address",
         variant: "destructive",
       });
       return;
@@ -46,19 +46,22 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     setIsProcessing(true);
     
     try {
-      // Process the real cash out with the Cash App API
-      await cashOut(cashAppTag);
+      // Process the payment with Stripe
+      const stripeUrl = await cashOut(email);
       
       // Close the dialog
       onOpenChange(false);
       
+      // Redirect to Stripe payment page
+      window.open(stripeUrl, '_blank');
+      
       toast({
-        title: "Cash Out Request Submitted!",
-        description: `$${cashValue} payment to ${cashAppTag} has been initiated. You'll receive a notification when the transfer completes.`,
+        title: "Payment Processing",
+        description: "Follow the Stripe checkout process to receive your payment.",
       });
     } catch (error) {
       toast({
-        title: "Cash Out Failed",
+        title: "Payment Failed",
         description: error instanceof Error ? error.message : "Please try again later",
         variant: "destructive",
       });
@@ -73,10 +76,10 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <BadgeDollarSign className="h-5 w-5 text-game-green" />
-            Real Cash Out
+            Cash Out Real Money
           </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Convert your coins to real cash via Cash App
+            Convert your coins to real cash via Stripe
           </DialogDescription>
         </DialogHeader>
 
@@ -102,16 +105,17 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="cashtag" className="text-white">Your $Cashtag</Label>
+            <Label htmlFor="email" className="text-white">Your Email Address</Label>
             <Input 
-              id="cashtag"
+              id="email"
               className="bg-black/30 border-white/20 text-white focus:border-game-green" 
-              placeholder="$YourCashTag"
-              value={cashAppTag}
-              onChange={(e) => setCashAppTag(e.target.value)}
+              placeholder="email@example.com"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
             <p className="text-xs text-gray-400">
-              Real money will be sent to this Cash App account
+              You'll receive payment instructions via Stripe to this email
             </p>
           </div>
         </div>
@@ -125,11 +129,11 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
             Cancel
           </Button>
           <Button
-            disabled={!canCashOut || isProcessing || !cashAppTag}
+            disabled={!canCashOut || isProcessing || !email}
             onClick={handleCashOut}
             className="bg-game-green hover:bg-game-green/80 text-black font-bold"
           >
-            {isProcessing ? "Processing Payment..." : 
+            {isProcessing ? "Processing..." : 
               <span className="flex items-center gap-1">
                 Cash Out <ArrowRight className="h-4 w-4" />
               </span>

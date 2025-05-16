@@ -20,7 +20,7 @@ interface GameContextType {
   activateGlitch: () => void;
   selectNFT: (nft: NFTItem) => void;
   resetProgress: () => void;
-  cashOut: (cashAppTag: string) => Promise<void>;
+  cashOut: (email: string) => Promise<string>;
 }
 
 interface NFTItem {
@@ -279,8 +279,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
   
-  // Cash out functionality
-  const cashOut = async (cashAppTag: string): Promise<void> => {
+  // Cash out functionality with Stripe
+  const cashOut = async (email: string): Promise<string> => {
     // Validate minimum cash out amount
     if (coins < 100) {
       throw new Error("You need at least 100 coins to cash out");
@@ -289,44 +289,43 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
     
-    // Real Cash App payment processing
-    return new Promise((resolve, reject) => {
-      // Make API request to Cash App
-      fetch('https://api.cash.app/v1/payments', {
+    // Create Stripe checkout session
+    try {
+      // In a real app, you would make an API call to your backend to create a Stripe checkout session
+      const response = await fetch('https://api.example.com/create-stripe-session', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer YOUR_CASH_APP_API_KEY' // This needs to be replaced with a real API key
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          amount: cashValue,
-          recipient: cashAppTag,
-          note: "Inkie's Escape Game Reward",
-          currency: "USD"
+          amount: parseFloat(cashValue),
+          email: email,
+          description: "Game Reward Payout"
         })
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Payment API request failed');
-        }
-        return response.json();
-      })
-      .then(data => {
-        console.log('Cash App payment successful:', data);
-        
-        // Deduct the coins that were cashed out
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create payment session');
+      }
+      
+      const data = await response.json();
+      
+      if (data.url) {
+        // Deduct coins when payment is initiated
         setCoins(0);
         
         // Record a "conversion" for CPA tracking
         setAdConversions(prev => prev + 1);
         
-        resolve();
-      })
-      .catch(error => {
-        console.error('Cash App payment error:', error);
-        reject(new Error('Payment processing failed. Please try again.'));
-      });
-    });
+        // Return the Stripe checkout URL
+        return data.url;
+      } else {
+        throw new Error('Invalid payment session response');
+      }
+    } catch (error) {
+      console.error('Stripe payment error:', error);
+      throw new Error('Payment processing failed. Please try again.');
+    }
   };
   
   // Energy regeneration over time
