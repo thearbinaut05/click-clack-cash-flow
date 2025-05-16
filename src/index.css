@@ -117,6 +117,12 @@
     box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), 0 0 30px rgba(139, 92, 246, 0.3);
   }
   
+  .game-button-cashout {
+    @apply game-button bg-gradient-to-r from-emerald-600 to-green-500 text-white border-b-4 border-emerald-800
+           hover:from-emerald-500 hover:to-green-400 active:border-b-0 active:translate-y-1;
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+  }
+  
   .game-card {
     @apply bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);

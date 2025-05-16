@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from '@/components/ui/use-toast';
 
@@ -21,6 +20,7 @@ interface GameContextType {
   activateGlitch: () => void;
   selectNFT: (nft: NFTItem) => void;
   resetProgress: () => void;
+  cashOut: (cashAppTag: string) => Promise<void>;
 }
 
 interface NFTItem {
@@ -279,6 +279,39 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
   
+  // Cash out functionality
+  const cashOut = async (cashAppTag: string): Promise<void> => {
+    // Validate minimum cash out amount
+    if (coins < 100) {
+      throw new Error("You need at least 100 coins to cash out");
+    }
+    
+    // Calculate cash value
+    const cashValue = (coins / 100).toFixed(2);
+    
+    // In a real app, we would make an API call to process the payment
+    // For this demo, we'll simulate a successful cash out after a delay
+    return new Promise((resolve, reject) => {
+      // Simulate API delay
+      setTimeout(() => {
+        try {
+          // Deduct the coins that were cashed out
+          setCoins(0);
+          
+          // Log the transaction
+          console.log(`Cash out of $${cashValue} to ${cashAppTag} processed successfully`);
+          
+          // Record a "conversion" for CPA tracking
+          setAdConversions(prev => prev + 1);
+          
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      }, 2000);
+    });
+  };
+  
   // Energy regeneration over time
   useEffect(() => {
     const energyInterval = setInterval(() => {
@@ -309,6 +342,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     activateGlitch,
     selectNFT,
     resetProgress,
+    cashOut,
   };
   
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
