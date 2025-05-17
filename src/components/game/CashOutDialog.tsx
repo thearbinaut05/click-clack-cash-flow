@@ -15,7 +15,7 @@ interface CashOutDialogProps {
 
 const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => {
   const { coins, cashOut } = useGame();
-  const [email, setEmail] = useState('');
+  const [cashAppTag, setCashAppTag] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Calculate the cash value (100 coins = $1)
@@ -25,19 +25,19 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
   const canCashOut = coins >= 100;
 
   const handleCashOut = async () => {
-    if (!email) {
+    if (!cashAppTag) {
       toast({
         title: "Error",
-        description: "Please enter your email address",
+        description: "Please enter your $Cashtag",
         variant: "destructive",
       });
       return;
     }
 
-    if (!email.includes('@')) {
+    if (!cashAppTag.startsWith('$')) {
       toast({
         title: "Error",
-        description: "Please enter a valid email address",
+        description: "Your $Cashtag must start with $",
         variant: "destructive",
       });
       return;
@@ -46,19 +46,19 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     setIsProcessing(true);
     
     try {
-      // Process the cashout with our Stripe integration
-      await cashOut(email);
+      // Process the cash out
+      await cashOut(cashAppTag);
       
       // Close the dialog
       onOpenChange(false);
       
       toast({
-        title: "Payment Processed",
-        description: `You've successfully cashed out $${cashValue} to your account!`,
+        title: "Cash Out Successful!",
+        description: `$${cashValue} has been sent to ${cashAppTag}`,
       });
     } catch (error) {
       toast({
-        title: "Payment Failed",
+        title: "Cash Out Failed",
         description: error instanceof Error ? error.message : "Please try again later",
         variant: "destructive",
       });
@@ -73,10 +73,10 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         <DialogHeader>
           <DialogTitle className="text-xl flex items-center gap-2">
             <BadgeDollarSign className="h-5 w-5 text-game-green" />
-            Cash Out Real Money
+            Cash Out Winnings
           </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Convert your coins to real cash via Stripe
+            Convert your coins to real cash via Cash App
           </DialogDescription>
         </DialogHeader>
 
@@ -102,18 +102,14 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-white">Your Stripe Account Email</Label>
+            <Label htmlFor="cashtag" className="text-white">Your $Cashtag</Label>
             <Input 
-              id="email"
+              id="cashtag"
               className="bg-black/30 border-white/20 text-white focus:border-game-green" 
-              placeholder="email@example.com"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="$YourCashTag"
+              value={cashAppTag}
+              onChange={(e) => setCashAppTag(e.target.value)}
             />
-            <p className="text-xs text-gray-400">
-              Make sure to use the email associated with your Stripe Connected Account
-            </p>
           </div>
         </div>
 
@@ -126,7 +122,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
             Cancel
           </Button>
           <Button
-            disabled={!canCashOut || isProcessing || !email}
+            disabled={!canCashOut || isProcessing || !cashAppTag}
             onClick={handleCashOut}
             className="bg-game-green hover:bg-game-green/80 text-black font-bold"
           >

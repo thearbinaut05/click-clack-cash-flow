@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { toast } from '@/hooks/use-toast';
+import { toast } from '@/components/ui/use-toast';
 
 interface GameContextType {
   coins: number;
@@ -20,7 +20,7 @@ interface GameContextType {
   activateGlitch: () => void;
   selectNFT: (nft: NFTItem) => void;
   resetProgress: () => void;
-  cashOut: (email: string) => Promise<string>;
+  cashOut: (cashAppTag: string) => Promise<void>;
 }
 
 interface NFTItem {
@@ -279,8 +279,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
   
-  // Cash out functionality with Stripe
-  const cashOut = async (email: string): Promise<string> => {
+  // Cash out functionality
+  const cashOut = async (cashAppTag: string): Promise<void> => {
     // Validate minimum cash out amount
     if (coins < 100) {
       throw new Error("You need at least 100 coins to cash out");
@@ -289,50 +289,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
     
-    // Create Stripe checkout session
-    try {
-      // Make an API call to our Stripe backend
-      const response = await fetch('http://localhost:4000/api/cashout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          amount: parseFloat(cashValue),
-          userStripeAccountId: email, // For now, we're using email as a placeholder for Stripe account ID
-          description: "Game Reward Payout"
-        })
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create payment session');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Deduct coins when payment is initiated
-        setCoins(0);
-        
-        // Record a "conversion" for CPA tracking
-        setAdConversions(prev => prev + 1);
-        
-        toast({
-          title: "💰 Cashout Initiated!",
-          description: `$${cashValue} has been sent to your account.`,
-          variant: "default",
-        });
-        
-        // Return success message
-        return "Payment processed successfully";
-      } else {
-        throw new Error('Invalid payment response');
-      }
-    } catch (error) {
-      console.error('Stripe payment error:', error);
-      throw new Error('Payment processing failed. Please try again.');
-    }
+    // In a real app, we would make an API call to process the payment
+    // For this demo, we'll simulate a successful cash out after a delay
+    return new Promise((resolve, reject) => {
+      // Simulate API delay
+      setTimeout(() => {
+        try {
+          // Deduct the coins that were cashed out
+          setCoins(0);
+          
+          // Log the transaction
+          console.log(`Cash out of $${cashValue} to ${cashAppTag} processed successfully`);
+          
+          // Record a "conversion" for CPA tracking
+          setAdConversions(prev => prev + 1);
+          
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      }, 2000);
+    });
   };
   
   // Energy regeneration over time
