@@ -26,13 +26,9 @@ app.post("/api/cashout", async (req, res) => {
     const userCents = Math.floor(totalCents / 2);
     const ownerCents = totalCents - userCents;
 
-    // For demo/development purposes, we'll skip the actual Stripe transfer
-    // and just simulate a successful response
-    console.log("Would transfer to user:", { userCents });
-    console.log("Would transfer to owner:", { ownerCents });
+    console.log("Transferring to user:", { userCents });
+    console.log("Transferring to owner:", { ownerCents });
     
-    // In production, uncomment these:
-    /*
     // Transfer to user
     await stripe.transfers.create({
       amount: userCents,
@@ -48,13 +44,44 @@ app.post("/api/cashout", async (req, res) => {
       destination: OWNER_STRIPE_ACCOUNT_ID,
       description: "Owner split"
     });
-    */
 
     res.json({ success: true, message: "Cashout split sent!" });
   } catch (err) {
     console.error("Cashout error:", err);
     res.status(500).json({ error: err.message || "Stripe error" });
   }
+});
+
+// Webhook endpoint for Stripe events
+app.post('/webhook', express.raw({type: 'application/json'}), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error(`Webhook Error: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'transfer.created':
+      const transfer = event.data.object;
+      console.log(`Transfer created: ${transfer.id} for ${transfer.amount / 100} USD`);
+      break;
+    case 'transfer.failed':
+      const failedTransfer = event.data.object;
+      console.error(`Transfer failed: ${failedTransfer.id}. Reason: ${failedTransfer.failure_message}`);
+      break;
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  // Return a 200 response to acknowledge receipt of the event
+  res.send();
 });
 
 const PORT = process.env.PORT || 4000;

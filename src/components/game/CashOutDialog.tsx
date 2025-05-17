@@ -102,7 +102,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-white">Your Email Address</Label>
+            <Label htmlFor="email" className="text-white">Your Stripe Account Email</Label>
             <Input 
               id="email"
               className="bg-black/30 border-white/20 text-white focus:border-game-green" 
@@ -112,7 +112,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
               onChange={(e) => setEmail(e.target.value)}
             />
             <p className="text-xs text-gray-400">
-              You'll receive payment via the email provided. Make sure it's correct!
+              Make sure to use the email associated with your Stripe Connected Account
             </p>
           </div>
         </div>
