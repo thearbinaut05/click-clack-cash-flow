@@ -97,7 +97,7 @@
 
 @layer components {
   .game-title {
-    @apply font-extrabold text-transparent bg-clip-text bg-glitch-gradient;
+    @apply font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500;
     text-shadow: 0 2px 10px rgba(236, 72, 153, 0.4), 0 0 5px rgba(139, 92, 246, 0.3);
   }
   
@@ -117,26 +117,25 @@
     box-shadow: 0 0 15px rgba(236, 72, 153, 0.6), 0 0 30px rgba(139, 92, 246, 0.3);
   }
   
-  .game-button-cashout {
-    @apply game-button bg-gradient-to-r from-emerald-600 to-green-500 text-white border-b-4 border-emerald-800
-           hover:from-emerald-500 hover:to-green-400 active:border-b-0 active:translate-y-1;
-    box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
-  }
-  
   .game-card {
-    @apply bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20 shadow-xl;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 0 10px rgba(255, 255, 255, 0.1);
+    @apply bg-[#12133d]/80 backdrop-blur-sm rounded-2xl border border-indigo-500/20 shadow-xl;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), inset 0 0 10px rgba(139, 92, 246, 0.1);
   }
   
   .game-counter {
-    @apply inline-flex items-center gap-1 bg-black/30 text-white rounded-full px-3 py-1 text-sm font-bold border border-white/10;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    @apply inline-flex items-center gap-1 bg-black/40 text-white rounded-full px-3 py-1 text-sm font-bold border border-indigo-500/20;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), inset 0 0 3px rgba(139, 92, 246, 0.2);
   }
   
   .bubble {
     @apply absolute rounded-full bg-white/30 animate-bubble-float pointer-events-none;
     filter: blur(0.5px);
   }
+}
+
+/* Digital noise background */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
 }
 
 /* Additional animations */
@@ -147,7 +146,27 @@
 }
 
 @keyframes pulse-glow {
-  0% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); }
-  50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.7); }
-  100% { box-shadow: 0 0 5px rgba(16, 185, 129, 0.4); }
+  0% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(139, 92, 246, 0.7); }
+  100% { box-shadow: 0 0 5px rgba(139, 92, 246, 0.4); }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.scan-effect::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(to bottom, 
+    rgba(139, 92, 246, 0) 0%,
+    rgba(139, 92, 246, 0.5) 50%,
+    rgba(139, 92, 246, 0) 100%);
+  animation: scan-line 2s linear infinite;
+  z-index: 1;
 }
