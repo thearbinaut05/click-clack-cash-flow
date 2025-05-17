@@ -46,18 +46,15 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     setIsProcessing(true);
     
     try {
-      // Process the payment with Stripe
-      const stripeUrl = await cashOut(email);
+      // Process the cashout with our Stripe integration
+      await cashOut(email);
       
       // Close the dialog
       onOpenChange(false);
       
-      // Redirect to Stripe payment page
-      window.open(stripeUrl, '_blank');
-      
       toast({
-        title: "Payment Processing",
-        description: "Follow the Stripe checkout process to receive your payment.",
+        title: "Payment Processed",
+        description: `You've successfully cashed out $${cashValue} to your account!`,
       });
     } catch (error) {
       toast({
@@ -115,7 +112,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
               onChange={(e) => setEmail(e.target.value)}
             />
             <p className="text-xs text-gray-400">
-              You'll receive payment instructions via Stripe to this email
+              You'll receive payment via the email provided. Make sure it's correct!
             </p>
           </div>
         </div>

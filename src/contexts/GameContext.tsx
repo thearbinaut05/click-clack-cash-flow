@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { toast } from '@/components/ui/use-toast';
+import { toast } from '@/hooks/use-toast';
 
 interface GameContextType {
   coins: number;
@@ -291,36 +291,43 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Create Stripe checkout session
     try {
-      // In a real app, you would make an API call to your backend to create a Stripe checkout session
-      const response = await fetch('https://api.example.com/create-stripe-session', {
+      // Make an API call to our Stripe backend
+      const response = await fetch('http://localhost:4000/api/cashout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           amount: parseFloat(cashValue),
-          email: email,
+          userStripeAccountId: email, // For now, we're using email as a placeholder for Stripe account ID
           description: "Game Reward Payout"
         })
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create payment session');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to create payment session');
       }
       
       const data = await response.json();
       
-      if (data.url) {
+      if (data.success) {
         // Deduct coins when payment is initiated
         setCoins(0);
         
         // Record a "conversion" for CPA tracking
         setAdConversions(prev => prev + 1);
         
-        // Return the Stripe checkout URL
-        return data.url;
+        toast({
+          title: "💰 Cashout Initiated!",
+          description: `$${cashValue} has been sent to your account.`,
+          variant: "default",
+        });
+        
+        // Return success message
+        return "Payment processed successfully";
       } else {
-        throw new Error('Invalid payment session response');
+        throw new Error('Invalid payment response');
       }
     } catch (error) {
       console.error('Stripe payment error:', error);
