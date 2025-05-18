@@ -39,6 +39,8 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     setIsProcessing(true);
     
     try {
+      console.log("Attempting cashout:", { amount: cashValue, email });
+      
       // Call the API to process the cashout
       const response = await fetch('http://localhost:4000/api/cashout', {
         method: 'POST',
@@ -52,6 +54,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       });
       
       const data = await response.json();
+      console.log("Cashout response:", data);
       
       if (data.success) {
         // Use the cashOut function from GameContext to reset coins
@@ -68,9 +71,10 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         throw new Error(data.error || "Payment processing failed");
       }
     } catch (error) {
+      console.error("Cashout error:", error);
       toast({
         title: "Payment Failed",
-        description: error instanceof Error ? error.message : "Please try again later",
+        description: error instanceof Error ? error.message : "Server error. Please try again later.",
         variant: "destructive",
       });
     } finally {
