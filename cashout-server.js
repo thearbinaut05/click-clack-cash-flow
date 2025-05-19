@@ -1,3 +1,5 @@
+[!DOCTYPE HTML]
+Cashout-server_stripe.js<=
 // 1. First, add Stripe.js to your HTML
 // Add this to your HTML head section:
 // <script src="https://js.stripe.com/v3/"></script>
