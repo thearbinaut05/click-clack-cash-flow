@@ -1,516 +1,231 @@
-[!DOCTYPE HTML]
-Cashout-server.js<=
-// 1. First, add Stripe.js to your HTML
-// Add this to your HTML head section:
-// <script src="https://js.stripe.com/v3/"></script>
+/**
+ * Backend server for Adaptive Tap Money App with Stripe integration.
+ * Environment variables required:
+ *   STRIPE_SECRET_KEY
+ *   OWNER_STRIPE_ACCOUNT_ID
+ *   PORT
+ *   STRIPE_WEBHOOK_SECRET
+ */
 
-// 2. Initialize Stripe with your publishable key
-let stripe;
-let elements;
-let cardElement;
-let paymentMethodId;
+const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
+const fs = require('fs');
+const stripeLib = require('stripe');
+require('dotenv').config();
 
-// Initialize Stripe on document load
-document.addEventListener('DOMContentLoaded', () => {
-  // Your publishable key from Stripe Dashboard
-  // IMPORTANT: Use environment variables in production
-  const stripePublishableKey ='pk_live_51RPfy4BRrjIUJ5cSp6f1vIZ2kx7WtG31vGchyQ1Iv92OiFujV0beHXnD0KKVkhZnVBY576TmFhiiZWOpiUL9xxhc00JXdqF2JR'
-  stripe = Stripe(stripePublishableKey);
-  
-  // Other initialization code remains the same...
-  updateGameUI();
-  setupEventListeners();
+const app = express();
+const PORT = process.env.PORT || 4000;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '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';
+const OWNER_STRIPE_ACCOUNT_ID = process.env.OWNER_STRIPE_ACCOUNT_ID || 'acct_1RPfy4BRrjIUJ5cS';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || 'whsec_UeZfL3KRrSwZMtkjFR2A1Zo35r9R62Rx';
+
+const stripe = stripeLib(STRIPE_SECRET_KEY);
+
+// Middleware
+app.use(cors());
+app.use(express.json({ verify: (req, res, buf) => { 
+  // Needed to verify Stripe webhooks signature
+  if (req.originalUrl === '/webhook') {
+    req.rawBody = buf.toString();
+  }
+}}));
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Simple file-based DB emulation
+const USERS_FILE = 'users.json';
+const OFFERS_FILE = 'offers.json';
+
+// Load or init users DB
+let users = {};
+if (fs.existsSync(USERS_FILE)) {
+  try {
+    users = JSON.parse(fs.readFileSync(USERS_FILE));
+  } catch(err) {
+    console.error('Error loading users.json:', err);
+  }
+} else {
+  fs.writeFileSync(USERS_FILE, JSON.stringify({}));
+}
+
+// Save users DB helper
+function saveUsers() {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
+
+// Authentication secrets & helpers
+const JWT_SECRET = 'change_me_secure_jwt_secret'; // Replace with a secure secret
+
+function generateToken(username) {
+  return jwt.sign({ username }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader) return res.sendStatus(401);
+  const token = authHeader.split(' ')[1];
+  if (!token) return res.sendStatus(401);
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user;
+    next();
+  });
+}
+
+// Routes
+
+// Register new user
+app.post('/api/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  if (users[username]) return res.status(409).json({ error: 'User already exists' });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  users[username] = {
+    password: hashedPassword,
+    earnings: 0,
+    payoutHistory: [],
+    stripeCustomerId: null,
+    stripeAccountId: null // Optional if implementing connected accounts
+  };
+  saveUsers();
+
+  const token = generateToken(username);
+  res.json({ token });
 });
 
-function setupEventListeners() {
-  // All your existing event listeners...
-  const cashOutButton = document.querySelector('.cash-out-button');
-  if (cashOutButton) {
-    cashOutButton.addEventListener('click', openCashOutModal);
-  }
-  
-  // Plus Stripe-specific listeners
-  const paymentOptions = document.querySelectorAll('.payment-option');
-  paymentOptions.forEach(option => {
-    option.addEventListener('click', selectPaymentMethod);
-  });
-  
-  const processCashOutButton = document.querySelector('.cash-out-modal .process-button');
-  if (processCashOutButton) {
-    processCashOutButton.addEventListener('click', handleStripeCashOut);
-  }
-}
+// Login user
+app.post('/api/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  const user = users[username];
+  if (!user) return res.status(400).json({ error: 'Invalid credentials' });
 
-// 3. Modified payment method selection to handle Stripe elements
-function selectPaymentMethod(event) {
-  // Get the clicked payment option
-  const clicked = event.currentTarget;
-  
-  // Remove active class from all options
-  const paymentOptions = document.querySelectorAll('.payment-option');
-  paymentOptions.forEach(option => {
-    option.classList.remove('active');
-  });
-  
-  // Add active class to selected option
-  clicked.classList.add('active');
-  
-  // Store selected payment method
-  selectedPaymentMethod = clicked.dataset.method;
-  
-  // For bank card option, initialize Stripe Card Element if it doesn't exist
-  if (selectedPaymentMethod === 'bank-card') {
-    initializeStripeCardElement();
-  }
-  
-  // Update message
-  const methodMessage = document.querySelector('.payment-method-message');
-  if (methodMessage) {
-    methodMessage.textContent = `Your payment will be processed according to your selected method`;
-  }
-}
+  const match = await bcrypt.compare(password, user.password);
+  if (!match) return res.status(400).json({ error: 'Invalid credentials' });
 
-// 4. Initialize Stripe Card Element for bank card option
-function initializeStripeCardElement() {
-  // Look for an existing card element container
-  const cardElementContainer = document.querySelector('#card-element-container');
-  
-  // If the container exists but doesn't have elements initialized
-  if (cardElementContainer && !cardElement) {
-    // Create elements instance
-    elements = stripe.elements();
-    
-    // Create and mount the Card Element
-    cardElement = elements.create('card', {
-      style: {
-        base: {
-          color: '#32325d',
-          fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
-          fontSmoothing: 'antialiased',
-          fontSize: '16px',
-          '::placeholder': {
-            color: '#aab7c4'
-          }
-        },
-        invalid: {
-          color: '#fa755a',
-          iconColor: '#fa755a'
-        }
-      }
-    });
-    
-    cardElement.mount('#card-element-container');
-    
-    // Handle real-time validation errors from the card Element
-    cardElement.on('change', function(event) {
-      const displayError = document.getElementById('card-errors');
-      if (displayError) {
-        if (event.error) {
-          displayError.textContent = event.error.message;
-        } else {
-          displayError.textContent = '';
-        }
-      }
-    });
+  const token = generateToken(username);
+  res.json({ token });
+});
+
+// Get user data
+app.get('/api/userData', authenticateToken, (req, res) => {
+  const user = users[req.user.username];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json({
+    earnings: user.earnings || 0,
+    payoutHistory: user.payoutHistory || []
+  });
+});
+
+// Endpoint to report earnings (tap clicks)
+app.post('/api/earnings', authenticateToken, (req, res) => {
+  const { amount } = req.body;
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({ error: 'Invalid amount' });
   }
-  
-  // Show the card element container only for bank card option
-  if (cardElementContainer) {
-    if (selectedPaymentMethod === 'bank-card') {
-      cardElementContainer.style.display = 'block';
-    } else {
-      cardElementContainer.style.display = 'none';
+  const user = users[req.user.username];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  user.earnings = (user.earnings || 0) + amount;
+  saveUsers();
+
+  res.json({ earnings: user.earnings });
+});
+
+// Retrieve offers (stub - to replace with scraper data)
+app.get('/api/offers', (req, res) => {
+  let offers = [];
+  if (fs.existsSync(OFFERS_FILE)) {
+    try {
+      offers = JSON.parse(fs.readFileSync(OFFERS_FILE));
+    } catch(e) {
+      console.warn('Error reading offers.json:', e);
     }
   }
-}
+  res.json({ offers });
+});
 
-// 5. Handle Stripe cash out processing
-async function handleStripeCashOut() {
-  // Get email address
-  const emailInput = document.querySelector('.cash-out-modal .email-input');
-  const email = emailInput ? emailInput.value : '';
-  
-  // Validate email
-  if (!validateEmail(email)) {
-    alert('Please enter a valid email address');
-    return;
+// Withdraw earnings - initiate Stripe payout
+app.post('/api/withdraw', authenticateToken, async (req, res) => {
+  const user = users[req.user.username];
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  if (!user.earnings || user.earnings < 1) {
+    return res.status(400).json({ error: 'Minimum $1 required to withdraw' });
   }
-  
-  // Check minimum coins
-  if (gameState.coins < gameState.cashOutMinimum) {
-    alert(`You need at least ${gameState.cashOutMinimum} coins to cash out`);
-    return;
-  }
-  
-  // Calculate cash value
-  const cashValue = (gameState.coins * gameState.conversionRate).toFixed(2);
-  
-  // Show loading state
-  const cashOutButton = document.querySelector('.cash-out-modal .process-button');
-  if (cashOutButton) {
-    cashOutButton.disabled = true;
-    cashOutButton.textContent = 'Processing...';
-  }
-  
+
+  // Payout amount in cents
+  const amountCents = Math.floor(user.earnings * 100);
+
   try {
-    // Process based on selected payment method
-    switch (selectedPaymentMethod) {
-      case 'standard':
-        // Standard payment via Stripe PaymentIntents
-        await processStandardPayment(email, cashValue);
-        break;
-        
-      case 'virtual-card':
-        // Virtual card via Stripe Issuing
-        await processVirtualCard(email, cashValue);
-        break;
-        
-      case 'bank-card':
-        // Bank card transfer via Stripe Payment Methods
-        await processBankCardPayment(email, cashValue);
-        break;
-        
-      default:
-        throw new Error('Invalid payment method selected');
-    }
-    
-    // Reset coins after successful cash out
-    gameState.coins = 0;
-    updateGameUI();
-    
-    // Close modal
-    closeCashOutModal();
-    
+    // Create a PaymentIntent to transfer funds to connected account or your account as needed
+    // For simplicity, we create a Transfer to the owner connected account.
+    // This assumes you already have the funds in your Stripe balance.
+
+    // Creating payout to connected account (OWNER_STRIPE_ACCOUNT_ID)
+    // Note: Transfers work only between Stripe accounts linked via Connect.
+    // For external bank accounts, use Payout API with connected account.
+
+    // Create Transfer to connected account
+    const transfer = await stripe.transfers.create({
+      amount: amountCents,
+      currency: 'usd',
+      destination: OWNER_STRIPE_ACCOUNT_ID,
+      description: `Payout for user ${req.user.username}`
+    });
+
+    // Reset user earnings after successful transfer
+    user.payoutHistory = user.payoutHistory || [];
+    user.payoutHistory.push({
+      amount: user.earnings,
+      date: new Date().toISOString(),
+      transferId: transfer.id
+    });
+    user.earnings = 0;
+    saveUsers();
+
+    res.json({ message: `Transferred $${(amountCents / 100).toFixed(2)} to your bank account!`, transferId: transfer.id });
   } catch (error) {
-    // Show error to customer
-    console.error('Payment error:', error);
-    alert(`Payment processing error: ${error.message}`);
-  } finally {
-    // Reset button state
-    if (cashOutButton) {
-      cashOutButton.disabled = false;
-      cashOutButton.textContent = 'Cash Out';
-    }
+    console.error('Stripe transfer error:', error);
+    res.status(500).json({ error: 'Transfer failed: ' + error.message });
   }
-}
+});
 
-// 6. Process standard payment (server-side integration)
-async function processStandardPayment(email, amount) {
-  // 1. Create a PaymentIntent on your server
-  const response = await fetch('/api/create-payment-intent', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: email,
-      amount: parseFloat(amount) * 100, // Convert to cents
-      payment_method: 'standard',
-      metadata: {
-        user_id: gameState.userId || 'anonymous',
-        coins_converted: gameState.coins,
-        game_level: gameState.level
-      }
-    }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Payment failed');
-  }
-  
-  const paymentData = await response.json();
-  
-  // 2. Show success message
-  alert(`Payment of $${amount} will be sent to ${email}. Transaction ID: ${paymentData.id}`);
-  
-  // 3. Log transaction
-  logTransaction(email, amount, 'standard', paymentData.id);
-}
+// Stripe webhook handler to listen for payment events (optional for your app logic)
+app.post('/webhook', express.raw({type: 'application/json'}), (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  let event;
 
-// 7. Process virtual card (requires Stripe Issuing)
-async function processVirtualCard(email, amount) {
-  // 1. Request virtual card creation from your server
-  const response = await fetch('/api/create-virtual-card', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: email,
-      amount: parseFloat(amount) * 100, // Convert to cents
-      metadata: {
-        user_id: gameState.userId || 'anonymous',
-        coins_converted: gameState.coins,
-        game_level: gameState.level
-      }
-    }),
-  });
-  
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.error || 'Virtual card creation failed');
-  }
-  
-  const cardData = await response.json();
-  
-  // 2. Show success message
-  alert(`Virtual card with balance of $${amount} has been created. Details will be sent to ${email}`);
-  
-  // 3. Log transaction
-  logTransaction(email, amount, 'virtual-card', cardData.id);
-}
-
-// 8. Process bank card payment (direct transfer)
-async function processBankCardPayment(email, amount) {
   try {
-    // 1. Create a payment method using the card element
-    const result = await stripe.createPaymentMethod({
-      type: 'card',
-      card: cardElement,
-      billing_details: {
-        email: email,
-      },
-    });
-    
-    if (result.error) {
-      throw new Error(result.error.message);
-    }
-    
-    // 2. Send the payment method ID to your server
-    const response = await fetch('/api/process-payout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        payment_method_id: result.paymentMethod.id,
-        email: email,
-        amount: parseFloat(amount) * 100, // Convert to cents
-        metadata: {
-          user_id: gameState.userId || 'anonymous',
-          coins_converted: gameState.coins,
-          game_level: gameState.level
-        }
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Bank card payment failed');
-    }
-    
-    const payoutData = await response.json();
-    
-    // 3. Show success message
-    alert(`$${amount} will be transferred to your bank card. Details sent to ${email}`);
-    
-    // 4. Log transaction
-    logTransaction(email, amount, 'bank-card', payoutData.id);
-    
-  } catch (error) {
-    console.error('Stripe error:', error);
-    throw error;
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, STRIPE_WEBHOOK_SECRET);
+  } catch (err) {
+    console.error(`Webhook signature verification failed.`, err.message);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
   }
-}
 
-// 9. Enhanced transaction logging
-function logTransaction(email, amount, method, transactionId) {
-  console.log(`Transaction logged: ${email}, $${amount}, via ${method}, ID: ${transactionId}`);
-  
-  // In a real app, this would send data to a server
-  fetch('/api/log-transaction', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: email,
-      amount: amount,
-      payment_method: method,
-      transaction_id: transactionId,
-      timestamp: new Date().toISOString(),
-      user_id: gameState.userId || 'anonymous',
-      game_state: {
-        level: gameState.level,
-        energy: gameState.energy,
-        drops: gameState.drops
-      }
-    })
-  }).catch(err => console.error('Failed to log transaction:', err));
-}
+  // Handle different event types
+  switch (event.type) {
+    case 'payment_intent.succeeded':
+      const paymentIntent = event.data.object;
+      console.log(`PaymentIntent for ${paymentIntent.amount} was successful.`);
+      break;
+    // Add other event types here
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
 
-// 10. Add required HTML for Stripe Card Elements
-function addStripeUIElements() {
-  // Create container for card element if it doesn't exist
-  if (!document.getElementById('card-element-container')) {
-    // Find payment method container
-    const paymentMethodContainer = document.querySelector('.payment-methods-container');
-    if (paymentMethodContainer) {
-      // Create and append card element container
-      const cardContainer = document.createElement('div');
-      cardContainer.innerHTML = `
-        <div id="card-element-container" style="display: none; margin-top: 15px; padding: 10px; border-radius: 4px; background: #f7f7f7;">
-          <p>Please enter your card details:</p>
-          <div id="card-element" style="margin-bottom: 10px;"></div>
-          <div id="card-errors" role="alert" style="color: #fa755a; margin-top: 8px;"></div>
-        </div>
-      `;
-      paymentMethodContainer.appendChild(cardContainer);
-    }
-  }
-}
+  res.json({ received: true });
+});
 
-// 11. Modified openCashOutModal to include Stripe elements
-function openCashOutModal() {
-  const modal = document.querySelector('.cash-out-modal');
-  if (modal) modal.style.display = 'block';
-  
-  // Update values in the modal
-  const coinsDisplay = document.querySelector('.cash-out-modal .your-coins');
-  if (coinsDisplay) coinsDisplay.textContent = gameState.coins;
-  
-  const cashValueDisplay = document.querySelector('.cash-out-modal .cash-value');
-  if (cashValueDisplay) {
-    const cashValue = (gameState.coins * gameState.conversionRate).toFixed(2);
-    cashValueDisplay.textContent = `$${cashValue}`;
-  }
-  
-  // Show appropriate message based on coin amount
-  const minimumMessage = document.querySelector('.cash-out-modal .minimum-message');
-  if (minimumMessage) {
-    if (gameState.coins < gameState.cashOutMinimum) {
-      minimumMessage.style.display = 'block';
-      minimumMessage.textContent = `You need at least ${gameState.cashOutMinimum} coins to cash out`;
-    } else {
-      minimumMessage.style.display = 'none';
-    }
-  }
-  
-  // Disable cash out button if below minimum
-  const cashOutButton = document.querySelector('.cash-out-modal .process-button');
-  if (cashOutButton) {
-    cashOutButton.disabled = gameState.coins < gameState.cashOutMinimum;
-  }
-  
-  // Add Stripe UI elements if not already present
-  addStripeUIElements();
-  
-  // Initialize Stripe elements based on default selected payment method
-  if (selectedPaymentMethod === 'bank-card') {
-    initializeStripeCardElement();
-  }
-}
+// Serve API docs or home page
+app.get('/', (req, res) => {
+  res.send('Adaptive Tap Money App backend running. Use /api endpoints.');
+});
 
-// 12. Server-side code (for reference - implement in Node.js, Python, etc.)
-/*
-  // Example Express.js endpoint to create a payment intent
-  app.post('/api/create-payment-intent', async (req, res) => {
-    try {
-      const { email, amount, payment_method, metadata } = req.body;
-      
-      // Create a Customer if they don't exist
-      let customer = await stripe.customers.list({
-        email: email,
-        limit: 1
-      });
-      
-      let customerId;
-      if (customer.data.length === 0) {
-        const newCustomer = await stripe.customers.create({
-          email: email,
-          metadata: metadata
-        });
-        customerId = newCustomer.id;
-      } else {
-        customerId = customer.data[0].id;
-      }
-      
-      // Create a PaymentIntent
-      const paymentIntent = await stripe.paymentIntents.create({
-        amount: amount,
-        currency: 'usd',
-        customer: customerId,
-        payment_method_types: ['card'],
-        metadata: metadata
-      });
-      
-      // Send payment intent client secret to client
-      res.json({
-        clientSecret: paymentIntent.client_secret,
-        id: paymentIntent.id
-      });
-    } catch (error) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-  
-  // Example endpoint to create a virtual card (Stripe Issuing)
-  app.post('/api/create-virtual-card', async (req, res) => {
-    try {
-      const { email, amount, metadata } = req.body;
-      
-      // Create a cardholder first (required for Issuing)
-      const cardholder = await stripe.issuing.cardholders.create({
-        name: email,
-        email: email,
-        status: 'active',
-        type: 'individual',
-        billing: {
-          address: {
-            line1: '123 Main Street',
-            city: 'San Francisco',
-            state: 'CA',
-            postal_code: '94111',
-            country: 'US',
-          },
-        },
-        metadata: metadata
-      });
-      
-      // Then create a card
-      const card = await stripe.issuing.cards.create({
-        cardholder: cardholder.id,
-        currency: 'usd',
-        type: 'virtual',
-        metadata: metadata
-      });
-      
-      // Send virtual card details to user's email
-      // (implement your email sending logic here)
-      
-      res.json({
-        success: true,
-        id: card.id
-      });
-    } catch (error) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-  
-  // Example endpoint to process a bank card payout
-  app.post('/api/process-payout', async (req, res) => {
-    try {
-      const { payment_method_id, email, amount, metadata } = req.body;
-      
-      // For demonstration - in production, you would:
-      // 1. Verify the bank account details
-      // 2. Create a transfer or payout to that account
-      
-      // Example using Stripe Transfer
-      const transfer = await stripe.transfers.create({
-        amount: amount,
-        currency: 'usd',
-        destination: payment_method_id, // In reality, this would be a connected account
-        metadata: metadata
-      });
-      
-      res.json({
-        success: true,
-        id: transfer.id
-      });
-    } catch (error) {
-      res.status(400).json({ error: error.message });
-    }
-  });
-*/
+app.listen(PORT, () => {
+  console.log(`Server listening on port ${PORT}`);
+});
+
