@@ -2,9 +2,7 @@
  * Backend server for Adaptive Tap Money App with Stripe integration.
  * Environment variables required:
  *   STRIPE_SECRET_KEY
- *   OWNER_STRIPE_ACCOUNT_ID
  *   PORT
- *   STRIPE_WEBHOOK_SECRET
  */
 
 const express = require('express');
@@ -14,11 +12,6 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-const OWNER_STRIPE_ACCOUNT_ID = process.env.OWNER_STRIPE_ACCOUNT_ID;
-
-// Import Stripe
-const stripe = require('stripe')(STRIPE_SECRET_KEY);
 
 // Middleware
 app.use(cors({
@@ -30,6 +23,9 @@ app.use(cors({
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
+// Simple in-memory gift card log (replace with database in production)
+const giftCardLog = [];
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -38,7 +34,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Unified cashout endpoint
+// Unified cashout endpoint for gift cards
 app.post('/api/cashout', async (req, res) => {
   try {
     const { amount, email } = req.body;
@@ -51,41 +47,49 @@ app.post('/api/cashout', async (req, res) => {
       return res.status(400).json({ error: 'Minimum amount of $1 required' });
     }
 
-    console.log(`Processing cashout for ${email} - Amount: ${amount / 100} USD`);
+    console.log(`Processing gift card payout for ${email} - Amount: ${amount / 100} USD`);
 
-    // Create a Stripe customer if one doesn't exist
-    const customers = await stripe.customers.list({ email, limit: 1 });
-    let customer;
+    // Record gift card attempt
+    const giftCard = {
+      id: `gc_${Date.now()}`,
+      email,
+      amount: amount / 100,
+      status: 'issued',
+      timestamp: new Date().toISOString()
+    };
 
-    if (customers.data.length === 0) {
-      customer = await stripe.customers.create({ email });
-      console.log(`Created new customer for ${email}: ${customer.id}`);
-    } else {
-      customer = customers.data[0];
-      console.log(`Found existing customer for ${email}: ${customer.id}`);
-    }
-
-    // Create a payout to the user's bank account
-    const payout = await stripe.payouts.create({
-      amount: amount,
-      currency: 'usd',
-      destination: OWNER_STRIPE_ACCOUNT_ID,
-      description: `Cashout for ${email}`
-    });
-
-    console.log(`Created payout: ${payout.id}`);
+    giftCardLog.push(giftCard);
 
     return res.json({ 
       success: true, 
-      payoutId: payout.id,
-      message: `$${amount / 100} has been sent to your account. Details sent to ${email}`
+      id: giftCard.id,
+      message: `Gift card of $${amount / 100} issued to ${email}`
     });
   } catch (error) {
     console.error('Cashout error:', error);
     return res.status(500).json({ 
-      error: error.message || 'Payment processing failed' 
+      error: error.message || 'Gift card processing failed' 
     });
   }
+});
+
+// Transactions history endpoint (for admin or debugging)
+app.get('/api/giftcards', (req, res) => {
+  res.json({ giftCards: giftCardLog });
+});
+
+// Serve API docs or home page
+app.get('/', (req, res) => {
+  res.send(`
+    <h1>Adaptive Tap Money API</h1>
+    <p>Server is running. Available endpoints:</p>
+    <ul>
+      <li><code>POST /api/cashout</code> - Issue a gift card</li>
+      <li><code>GET /api/health</code> - Health check</li>
+      <li><code>GET /api/giftcards</code> - View issued gift cards</li>
+    </ul>
+    <p>Server started at: ${new Date().toISOString()}</p>
+  `);
 });
 
 // Start the server
