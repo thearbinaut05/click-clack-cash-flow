@@ -1,97 +1,365 @@
-// Game state management
-let gameState = {
-  playerName: "Player",
-  level: 1,
-  coins: 0,
-  energy: 100,
-  drops: 0,
-  cashOutMinimum: 100,
-  conversionRate: 0.01, // 100 coins = $1
-};
+// 1. First, add Stripe.js to your HTML
+// Add this to your HTML head section:
+// <script src="https://js.stripe.com/v3/"></script>
 
-// DOM Elements - once page is loaded
+// 2. Initialize Stripe with your publishable key
+let stripe;
+let elements;
+let cardElement;
+let paymentMethodId;
+
+// Initialize Stripe on document load
 document.addEventListener('DOMContentLoaded', () => {
-  // Update UI with initial game state
+  // Your publishable key from Stripe Dashboard
+  // IMPORTANT: Use environment variables in production
+  const stripePublishableKey = 'pk_test_your_publishable_key';
+  stripe = Stripe(stripePublishableKey);
+  
+  // Other initialization code remains the same...
   updateGameUI();
+  setupEventListeners();
+});
 
-  // Add event listeners for cash out modal
+function setupEventListeners() {
+  // All your existing event listeners...
   const cashOutButton = document.querySelector('.cash-out-button');
   if (cashOutButton) {
     cashOutButton.addEventListener('click', openCashOutModal);
   }
   
-  // Close modal when X is clicked
-  const closeModalButton = document.querySelector('.cash-out-modal .close-button');
-  if (closeModalButton) {
-    closeModalButton.addEventListener('click', closeCashOutModal);
-  }
-  
-  // Payment method selection
+  // Plus Stripe-specific listeners
   const paymentOptions = document.querySelectorAll('.payment-option');
   paymentOptions.forEach(option => {
     option.addEventListener('click', selectPaymentMethod);
   });
   
-  // Cash out button in modal
   const processCashOutButton = document.querySelector('.cash-out-modal .process-button');
   if (processCashOutButton) {
-    processCashOutButton.addEventListener('click', processCashOut);
-  }
-  
-  // Game feature buttons (energy boost, premium tap)
-  const energyBoostButton = document.querySelector('.energy-boost-button');
-  if (energyBoostButton) {
-    energyBoostButton.addEventListener('click', purchaseEnergyBoost);
-  }
-  
-  const premiumTapButton = document.querySelector('.premium-tap-button');
-  if (premiumTapButton) {
-    premiumTapButton.addEventListener('click', purchasePremiumTap);
-  }
-  
-  // Analytics button
-  const analyticsButton = document.querySelector('.analytics-button');
-  if (analyticsButton) {
-    analyticsButton.addEventListener('click', openAnalytics);
-  }
-  
-  // Main game area - clicking/tapping mechanism
-  const gameArea = document.querySelector('.game-area');
-  if (gameArea) {
-    gameArea.addEventListener('click', handleGameTap);
-  }
-});
-
-// Update all UI elements with current game state
-function updateGameUI() {
-  // Update level display
-  const levelElement = document.querySelector('.level-display');
-  if (levelElement) levelElement.textContent = `Lvl ${gameState.level}`;
-  
-  // Update coin display
-  const coinElement = document.querySelector('.coin-display');
-  if (coinElement) coinElement.textContent = gameState.coins;
-  
-  // Update energy bar
-  const energyBar = document.querySelector('.energy-bar');
-  if (energyBar) {
-    energyBar.style.width = `${gameState.energy}%`;
-    energyBar.textContent = `Energy: ${gameState.energy}%`;
-  }
-  
-  // Update drops display
-  const dropsElement = document.querySelector('.drops-display');
-  if (dropsElement) dropsElement.textContent = gameState.drops;
-  
-  // Update cash out button display
-  const cashOutButtonText = document.querySelector('.cash-out-button');
-  if (cashOutButtonText) {
-    const cashValue = (gameState.coins * gameState.conversionRate).toFixed(2);
-    cashOutButtonText.textContent = `Cash Out Real Money ($${cashValue})`;
+    processCashOutButton.addEventListener('click', handleStripeCashOut);
   }
 }
 
-// Cash out modal functionality
+// 3. Modified payment method selection to handle Stripe elements
+function selectPaymentMethod(event) {
+  // Get the clicked payment option
+  const clicked = event.currentTarget;
+  
+  // Remove active class from all options
+  const paymentOptions = document.querySelectorAll('.payment-option');
+  paymentOptions.forEach(option => {
+    option.classList.remove('active');
+  });
+  
+  // Add active class to selected option
+  clicked.classList.add('active');
+  
+  // Store selected payment method
+  selectedPaymentMethod = clicked.dataset.method;
+  
+  // For bank card option, initialize Stripe Card Element if it doesn't exist
+  if (selectedPaymentMethod === 'bank-card') {
+    initializeStripeCardElement();
+  }
+  
+  // Update message
+  const methodMessage = document.querySelector('.payment-method-message');
+  if (methodMessage) {
+    methodMessage.textContent = `Your payment will be processed according to your selected method`;
+  }
+}
+
+// 4. Initialize Stripe Card Element for bank card option
+function initializeStripeCardElement() {
+  // Look for an existing card element container
+  const cardElementContainer = document.querySelector('#card-element-container');
+  
+  // If the container exists but doesn't have elements initialized
+  if (cardElementContainer && !cardElement) {
+    // Create elements instance
+    elements = stripe.elements();
+    
+    // Create and mount the Card Element
+    cardElement = elements.create('card', {
+      style: {
+        base: {
+          color: '#32325d',
+          fontFamily: '"Helvetica Neue", Helvetica, sans-serif',
+          fontSmoothing: 'antialiased',
+          fontSize: '16px',
+          '::placeholder': {
+            color: '#aab7c4'
+          }
+        },
+        invalid: {
+          color: '#fa755a',
+          iconColor: '#fa755a'
+        }
+      }
+    });
+    
+    cardElement.mount('#card-element-container');
+    
+    // Handle real-time validation errors from the card Element
+    cardElement.on('change', function(event) {
+      const displayError = document.getElementById('card-errors');
+      if (displayError) {
+        if (event.error) {
+          displayError.textContent = event.error.message;
+        } else {
+          displayError.textContent = '';
+        }
+      }
+    });
+  }
+  
+  // Show the card element container only for bank card option
+  if (cardElementContainer) {
+    if (selectedPaymentMethod === 'bank-card') {
+      cardElementContainer.style.display = 'block';
+    } else {
+      cardElementContainer.style.display = 'none';
+    }
+  }
+}
+
+// 5. Handle Stripe cash out processing
+async function handleStripeCashOut() {
+  // Get email address
+  const emailInput = document.querySelector('.cash-out-modal .email-input');
+  const email = emailInput ? emailInput.value : '';
+  
+  // Validate email
+  if (!validateEmail(email)) {
+    alert('Please enter a valid email address');
+    return;
+  }
+  
+  // Check minimum coins
+  if (gameState.coins < gameState.cashOutMinimum) {
+    alert(`You need at least ${gameState.cashOutMinimum} coins to cash out`);
+    return;
+  }
+  
+  // Calculate cash value
+  const cashValue = (gameState.coins * gameState.conversionRate).toFixed(2);
+  
+  // Show loading state
+  const cashOutButton = document.querySelector('.cash-out-modal .process-button');
+  if (cashOutButton) {
+    cashOutButton.disabled = true;
+    cashOutButton.textContent = 'Processing...';
+  }
+  
+  try {
+    // Process based on selected payment method
+    switch (selectedPaymentMethod) {
+      case 'standard':
+        // Standard payment via Stripe PaymentIntents
+        await processStandardPayment(email, cashValue);
+        break;
+        
+      case 'virtual-card':
+        // Virtual card via Stripe Issuing
+        await processVirtualCard(email, cashValue);
+        break;
+        
+      case 'bank-card':
+        // Bank card transfer via Stripe Payment Methods
+        await processBankCardPayment(email, cashValue);
+        break;
+        
+      default:
+        throw new Error('Invalid payment method selected');
+    }
+    
+    // Reset coins after successful cash out
+    gameState.coins = 0;
+    updateGameUI();
+    
+    // Close modal
+    closeCashOutModal();
+    
+  } catch (error) {
+    // Show error to customer
+    console.error('Payment error:', error);
+    alert(`Payment processing error: ${error.message}`);
+  } finally {
+    // Reset button state
+    if (cashOutButton) {
+      cashOutButton.disabled = false;
+      cashOutButton.textContent = 'Cash Out';
+    }
+  }
+}
+
+// 6. Process standard payment (server-side integration)
+async function processStandardPayment(email, amount) {
+  // 1. Create a PaymentIntent on your server
+  const response = await fetch('/api/create-payment-intent', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: email,
+      amount: parseFloat(amount) * 100, // Convert to cents
+      payment_method: 'standard',
+      metadata: {
+        user_id: gameState.userId || 'anonymous',
+        coins_converted: gameState.coins,
+        game_level: gameState.level
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Payment failed');
+  }
+  
+  const paymentData = await response.json();
+  
+  // 2. Show success message
+  alert(`Payment of $${amount} will be sent to ${email}. Transaction ID: ${paymentData.id}`);
+  
+  // 3. Log transaction
+  logTransaction(email, amount, 'standard', paymentData.id);
+}
+
+// 7. Process virtual card (requires Stripe Issuing)
+async function processVirtualCard(email, amount) {
+  // 1. Request virtual card creation from your server
+  const response = await fetch('/api/create-virtual-card', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: email,
+      amount: parseFloat(amount) * 100, // Convert to cents
+      metadata: {
+        user_id: gameState.userId || 'anonymous',
+        coins_converted: gameState.coins,
+        game_level: gameState.level
+      }
+    }),
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || 'Virtual card creation failed');
+  }
+  
+  const cardData = await response.json();
+  
+  // 2. Show success message
+  alert(`Virtual card with balance of $${amount} has been created. Details will be sent to ${email}`);
+  
+  // 3. Log transaction
+  logTransaction(email, amount, 'virtual-card', cardData.id);
+}
+
+// 8. Process bank card payment (direct transfer)
+async function processBankCardPayment(email, amount) {
+  try {
+    // 1. Create a payment method using the card element
+    const result = await stripe.createPaymentMethod({
+      type: 'card',
+      card: cardElement,
+      billing_details: {
+        email: email,
+      },
+    });
+    
+    if (result.error) {
+      throw new Error(result.error.message);
+    }
+    
+    // 2. Send the payment method ID to your server
+    const response = await fetch('/api/process-payout', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        payment_method_id: result.paymentMethod.id,
+        email: email,
+        amount: parseFloat(amount) * 100, // Convert to cents
+        metadata: {
+          user_id: gameState.userId || 'anonymous',
+          coins_converted: gameState.coins,
+          game_level: gameState.level
+        }
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Bank card payment failed');
+    }
+    
+    const payoutData = await response.json();
+    
+    // 3. Show success message
+    alert(`$${amount} will be transferred to your bank card. Details sent to ${email}`);
+    
+    // 4. Log transaction
+    logTransaction(email, amount, 'bank-card', payoutData.id);
+    
+  } catch (error) {
+    console.error('Stripe error:', error);
+    throw error;
+  }
+}
+
+// 9. Enhanced transaction logging
+function logTransaction(email, amount, method, transactionId) {
+  console.log(`Transaction logged: ${email}, $${amount}, via ${method}, ID: ${transactionId}`);
+  
+  // In a real app, this would send data to a server
+  fetch('/api/log-transaction', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: email,
+      amount: amount,
+      payment_method: method,
+      transaction_id: transactionId,
+      timestamp: new Date().toISOString(),
+      user_id: gameState.userId || 'anonymous',
+      game_state: {
+        level: gameState.level,
+        energy: gameState.energy,
+        drops: gameState.drops
+      }
+    })
+  }).catch(err => console.error('Failed to log transaction:', err));
+}
+
+// 10. Add required HTML for Stripe Card Elements
+function addStripeUIElements() {
+  // Create container for card element if it doesn't exist
+  if (!document.getElementById('card-element-container')) {
+    // Find payment method container
+    const paymentMethodContainer = document.querySelector('.payment-methods-container');
+    if (paymentMethodContainer) {
+      // Create and append card element container
+      const cardContainer = document.createElement('div');
+      cardContainer.innerHTML = `
+        <div id="card-element-container" style="display: none; margin-top: 15px; padding: 10px; border-radius: 4px; background: #f7f7f7;">
+          <p>Please enter your card details:</p>
+          <div id="card-element" style="margin-bottom: 10px;"></div>
+          <div id="card-errors" role="alert" style="color: #fa755a; margin-top: 8px;"></div>
+        </div>
+      `;
+      paymentMethodContainer.appendChild(cardContainer);
+    }
+  }
+}
+
+// 11. Modified openCashOutModal to include Stripe elements
 function openCashOutModal() {
   const modal = document.querySelector('.cash-out-modal');
   if (modal) modal.style.display = 'block';
@@ -122,255 +390,125 @@ function openCashOutModal() {
   if (cashOutButton) {
     cashOutButton.disabled = gameState.coins < gameState.cashOutMinimum;
   }
-}
-
-function closeCashOutModal() {
-  const modal = document.querySelector('.cash-out-modal');
-  if (modal) modal.style.display = 'none';
-}
-
-// Select payment method
-let selectedPaymentMethod = 'standard';
-
-function selectPaymentMethod(event) {
-  // Get the clicked payment option
-  const clicked = event.currentTarget;
   
-  // Remove active class from all options
-  const paymentOptions = document.querySelectorAll('.payment-option');
-  paymentOptions.forEach(option => {
-    option.classList.remove('active');
+  // Add Stripe UI elements if not already present
+  addStripeUIElements();
+  
+  // Initialize Stripe elements based on default selected payment method
+  if (selectedPaymentMethod === 'bank-card') {
+    initializeStripeCardElement();
+  }
+}
+
+// 12. Server-side code (for reference - implement in Node.js, Python, etc.)
+/*
+  // Example Express.js endpoint to create a payment intent
+  app.post('/api/create-payment-intent', async (req, res) => {
+    try {
+      const { email, amount, payment_method, metadata } = req.body;
+      
+      // Create a Customer if they don't exist
+      let customer = await stripe.customers.list({
+        email: email,
+        limit: 1
+      });
+      
+      let customerId;
+      if (customer.data.length === 0) {
+        const newCustomer = await stripe.customers.create({
+          email: email,
+          metadata: metadata
+        });
+        customerId = newCustomer.id;
+      } else {
+        customerId = customer.data[0].id;
+      }
+      
+      // Create a PaymentIntent
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: 'usd',
+        customer: customerId,
+        payment_method_types: ['card'],
+        metadata: metadata
+      });
+      
+      // Send payment intent client secret to client
+      res.json({
+        clientSecret: paymentIntent.client_secret,
+        id: paymentIntent.id
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
   });
   
-  // Add active class to selected option
-  clicked.classList.add('active');
+  // Example endpoint to create a virtual card (Stripe Issuing)
+  app.post('/api/create-virtual-card', async (req, res) => {
+    try {
+      const { email, amount, metadata } = req.body;
+      
+      // Create a cardholder first (required for Issuing)
+      const cardholder = await stripe.issuing.cardholders.create({
+        name: email,
+        email: email,
+        status: 'active',
+        type: 'individual',
+        billing: {
+          address: {
+            line1: '123 Main Street',
+            city: 'San Francisco',
+            state: 'CA',
+            postal_code: '94111',
+            country: 'US',
+          },
+        },
+        metadata: metadata
+      });
+      
+      // Then create a card
+      const card = await stripe.issuing.cards.create({
+        cardholder: cardholder.id,
+        currency: 'usd',
+        type: 'virtual',
+        metadata: metadata
+      });
+      
+      // Send virtual card details to user's email
+      // (implement your email sending logic here)
+      
+      res.json({
+        success: true,
+        id: card.id
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
   
-  // Store selected payment method
-  selectedPaymentMethod = clicked.dataset.method;
-  
-  // Update message
-  const methodMessage = document.querySelector('.payment-method-message');
-  if (methodMessage) {
-    methodMessage.textContent = `Your payment will be processed according to your selected method`;
-  }
-}
-
-// Process cash out request
-function processCashOut() {
-  // Get email address
-  const emailInput = document.querySelector('.cash-out-modal .email-input');
-  const email = emailInput ? emailInput.value : '';
-  
-  // Validate email
-  if (!validateEmail(email)) {
-    alert('Please enter a valid email address');
-    return;
-  }
-  
-  // Check minimum coins
-  if (gameState.coins < gameState.cashOutMinimum) {
-    alert(`You need at least ${gameState.cashOutMinimum} coins to cash out`);
-    return;
-  }
-  
-  // Calculate cash value
-  const cashValue = (gameState.coins * gameState.conversionRate).toFixed(2);
-  
-  // Process based on selected payment method
-  let confirmationMessage = '';
-  switch (selectedPaymentMethod) {
-    case 'standard':
-      confirmationMessage = `Payment of $${cashValue} will be sent to ${email}`;
-      break;
-    case 'virtual-card':
-      confirmationMessage = `Virtual card with balance of $${cashValue} will be created and details sent to ${email}`;
-      break;
-    case 'bank-card':
-      confirmationMessage = `$${cashValue} will be transferred to your bank card. Details sent to ${email}`;
-      break;
-    default:
-      confirmationMessage = `Payment of $${cashValue} will be processed. Confirmation sent to ${email}`;
-  }
-  
-  // Show success message
-  alert(confirmationMessage);
-  
-  // Reset coins after successful cash out
-  gameState.coins = 0;
-  updateGameUI();
-  
-  // Close modal
-  closeCashOutModal();
-  
-  // Log transaction
-  logTransaction(email, cashValue, selectedPaymentMethod);
-}
-
-// Email validation
-function validateEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
-}
-
-// Log transaction for analytics and records
-function logTransaction(email, amount, method) {
-  console.log(`Transaction logged: ${email}, $${amount}, via ${method}`);
-  // In a real app, this would send data to a server
-}
-
-// Game mechanics
-function handleGameTap(event) {
-  // Check if player has energy
-  if (gameState.energy <= 0) {
-    alert('Out of energy! Purchase an energy boost to continue.');
-    return;
-  }
-  
-  // Reduce energy slightly with each tap
-  gameState.energy = Math.max(0, gameState.energy - 1);
-  
-  // Add coins based on game logic (more coins at higher levels)
-  const baseCoins = 1;
-  const levelBonus = Math.floor(gameState.level / 5); // Bonus every 5 levels
-  const coinsEarned = baseCoins + levelBonus;
-  
-  gameState.coins += coinsEarned;
-  
-  // Occasionally earn drops (rarer resource)
-  if (Math.random() < 0.05) { // 5% chance
-    gameState.drops += 1;
-  }
-  
-  // Level up logic based on taps or some other metric
-  // (Simplified for this example - could be more complex in real game)
-  if (gameState.coins > gameState.level * 100) {
-    gameState.level += 1;
-    // Maybe give rewards for leveling up
-    gameState.energy = 100; // Refill energy on level up
-    alert(`Level up! You are now level ${gameState.level}`);
-  }
-  
-  // Create visual feedback for tap (coin animation, etc)
-  createTapAnimation(event.clientX, event.clientY, coinsEarned);
-  
-  // Update UI
-  updateGameUI();
-}
-
-// Visual feedback for tapping
-function createTapAnimation(x, y, coins) {
-  const animation = document.createElement('div');
-  animation.className = 'tap-animation';
-  animation.textContent = `+${coins}`;
-  animation.style.left = `${x}px`;
-  animation.style.top = `${y}px`;
-  
-  document.body.appendChild(animation);
-  
-  // Remove animation after it completes
-  setTimeout(() => {
-    document.body.removeChild(animation);
-  }, 1000);
-}
-
-// Game features
-function purchaseEnergyBoost() {
-  if (gameState.coins < 20) {
-    alert('Not enough coins! You need 20 coins for an energy boost.');
-    return;
-  }
-  
-  gameState.coins -= 20;
-  gameState.energy = Math.min(100, gameState.energy + 20);
-  
-  updateGameUI();
-  alert('Energy boosted by 20%!');
-}
-
-function purchasePremiumTap() {
-  if (gameState.drops < 5) {
-    alert('Not enough drops! You need 5 drops to activate Premium Tap.');
-    return;
-  }
-  
-  gameState.drops -= 5;
-  
-  // Activate premium tap mode for 60 seconds
-  const originalCoinsPerTap = 1;
-  const premiumBonus = 5;
-  
-  // Store original value and set new value
-  const originalTapValue = baseCoins;
-  baseCoins = originalTapValue + premiumBonus;
-  
-  // Update UI to show active premium status
-  const premiumIndicator = document.createElement('div');
-  premiumIndicator.className = 'premium-active';
-  premiumIndicator.textContent = 'PREMIUM ACTIVE! +5 coins per tap';
-  document.body.appendChild(premiumIndicator);
-  
-  updateGameUI();
-  
-  // Reset after duration
-  setTimeout(() => {
-    baseCoins = originalTapValue;
-    document.body.removeChild(premiumIndicator);
-    alert('Premium tap boost has ended');
-    updateGameUI();
-  }, 60000); // 60 seconds
-}
-
-// Analytics screen
-function openAnalytics() {
-  // This would typically load a more complex analytics dashboard
-  // Simplified for this example
-  alert(`Game Stats:\n- Level: ${gameState.level}\n- Total Coins Earned: ${gameState.coins}\n- Drops Collected: ${gameState.drops}`);
-}
-
-// CSS for animations and UI feedback
-const gameStyles = `
-.tap-animation {
-  position: absolute;
-  font-size: 16px;
-  color: gold;
-  font-weight: bold;
-  pointer-events: none;
-  animation: float-up 1s ease-out forwards;
-  z-index: 1000;
-}
-
-@keyframes float-up {
-  0% {
-    transform: translateY(0) scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(-50px) scale(1.5);
-    opacity: 0;
-  }
-}
-
-.premium-active {
-  position: fixed;
-  top: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background-color: gold;
-  color: black;
-  padding: 10px;
-  border-radius: 5px;
-  z-index: 1000;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0% { transform: translateX(-50%) scale(1); }
-  50% { transform: translateX(-50%) scale(1.05); }
-  100% { transform: translateX(-50%) scale(1); }
-}
-`;
-
-// Add styles to document
-const styleElement = document.createElement('style');
-styleElement.textContent = gameStyles;
-document.head.appendChild(styleElement);
+  // Example endpoint to process a bank card payout
+  app.post('/api/process-payout', async (req, res) => {
+    try {
+      const { payment_method_id, email, amount, metadata } = req.body;
+      
+      // For demonstration - in production, you would:
+      // 1. Verify the bank account details
+      // 2. Create a transfer or payout to that account
+      
+      // Example using Stripe Transfer
+      const transfer = await stripe.transfers.create({
+        amount: amount,
+        currency: 'usd',
+        destination: payment_method_id, // In reality, this would be a connected account
+        metadata: metadata
+      });
+      
+      res.json({
+        success: true,
+        id: transfer.id
+      });
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+*/
