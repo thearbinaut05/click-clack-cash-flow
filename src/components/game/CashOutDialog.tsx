@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { API_BASE_URL } from '@/utils/constants';
+import TestCashOutButton from './TestCashOutButton';
 
 interface CashOutDialogProps {
   open: boolean;
@@ -146,11 +147,16 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
             </div>
           </div>
 
-          {coins < 100 && (
-            <div className="text-center p-2 mb-4 bg-orange-900/40 text-orange-300 rounded-md text-sm">
-              You need at least 100 coins to cash out
+          <div className="flex justify-between mb-4">
+            <div>
+              {coins < 100 && (
+                <div className="p-2 bg-orange-900/40 text-orange-300 rounded-md text-sm">
+                  You need at least 100 coins to cash out
+                </div>
+              )}
             </div>
-          )}
+            <TestCashOutButton />
+          </div>
           
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleCashOut)} className="space-y-4">

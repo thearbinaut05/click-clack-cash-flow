@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
 
 interface GameContextType {
   coins: number;
@@ -288,13 +289,37 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
+    const amountInCents = Math.round(parseFloat(cashValue) * 100);
     
     try {
-      // Simulated successful cashout - in production this would call the API
-      console.log(`Simulating cashout of $${cashValue} to ${email}`);
+      console.log(`Processing cashout of $${cashValue} to ${email}`);
       
-      // Record the transaction
-      const transactionId = `tx_${Date.now()}`;
+      // In automated mode, we process the payment through the API directly
+      // This ensures no user input is needed beyond initiating the process
+      const response = await fetch(`${API_BASE_URL}/cashout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: amountInCents,
+          email: email || DEFAULT_TEST_EMAIL,
+          method: DEFAULT_CASHOUT_METHOD,
+          metadata: {
+            gameSession: Date.now(),
+            coinCount: coins,
+            automated: true
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment processing failed');
+      }
+      
+      const result = await response.json();
+      console.log("Automated cashout result:", result);
       
       // Deduct coins when payment is initiated
       setCoins(0);
@@ -302,10 +327,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Record a "conversion" for CPA tracking
       setAdConversions(prev => prev + 1);
       
-      return transactionId;
+      return result.id || `tx_${Date.now()}`;
     } catch (error) {
       console.error('Payment error:', error);
-      throw new Error('Payment processing failed. Please try again.');
+      throw error instanceof Error ? error : new Error('Payment processing failed. Please try again later.');
     }
   };
   
