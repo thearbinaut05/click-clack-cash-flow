@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,7 +10,7 @@ import { useGame } from '@/contexts/GameContext';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { OWNER_STRIPE_ACCOUNT_ID, API_BASE_URL } from '@/utils/constants';
+import { API_BASE_URL } from '@/utils/constants';
 
 interface CashOutDialogProps {
   open: boolean;
@@ -62,17 +63,30 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       
       const amountInCents = Math.round(parseFloat(cashValue) * 100);
       
-      // Direct API implementation instead of fetch
-      // This simulates a successful cashout since the API isn't available
-      // In production, you would replace this with actual API calls
-      console.log(`Processing ${amountInCents} cents cashout via ${values.method}`);
+      // Make real API call to the cashout endpoint
+      const response = await fetch(`${API_BASE_URL}/cashout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: amountInCents,
+          email: values.email,
+          method: values.method,
+          metadata: {
+            gameSession: Date.now(),
+            coinCount: coins
+          }
+        })
+      });
       
-      // Simulate API response
-      const simulatedResponse = {
-        success: true,
-        id: `pmt_${Date.now()}`,
-        message: `Successfully processed ${values.method} payment`
-      };
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment processing failed');
+      }
+      
+      const result = await response.json();
+      console.log("Cashout result:", result);
       
       // Reset coins in game context
       await cashOut(values.email);
@@ -83,7 +97,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       let successMessage = `You've successfully cashed out $${cashValue} to ${values.email}!`;
       
       if (values.method === 'virtual-card') {
-        successMessage = `Virtual card created! Details sent to ${values.email}`;
+        successMessage = `Virtual card created with ${result.cardDetails?.last4 ? 'ending in ' + result.cardDetails.last4 : ''}! Details sent to ${values.email}`;
       } else if (values.method === 'bank-card') {
         successMessage = `$${cashValue} will be transferred to your bank card. Details sent to ${values.email}`;
       }
