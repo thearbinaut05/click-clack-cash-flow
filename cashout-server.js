@@ -12,7 +12,7 @@ let paymentMethodId;
 document.addEventListener('DOMContentLoaded', () => {
   // Your publishable key from Stripe Dashboard
   // IMPORTANT: Use environment variables in production
-  const stripePublishableKey = 'pk_test_your_publishable_key';
+  const stripePublishableKey ='pk_live_51RPfy4BRrjIUJ5cSp6f1vIZ2kx7WtG31vGchyQ1Iv92OiFujV0beHXnD0KKVkhZnVBY576TmFhiiZWOpiUL9xxhc00JXdqF2JR'
   stripe = Stripe(stripePublishableKey);
   
   // Other initialization code remains the same...
