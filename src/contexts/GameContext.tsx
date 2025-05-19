@@ -289,48 +289,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
     
-    // Create Stripe checkout session
     try {
-      // Make an API call to our Stripe backend
-      const response = await fetch('http://localhost:4000/api/cashout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          amount: parseFloat(cashValue),
-          userStripeAccountId: email, // For now, we're using email as a placeholder for Stripe account ID
-          description: "Game Reward Payout"
-        })
-      });
+      // Simulated successful cashout - in production this would call the API
+      console.log(`Simulating cashout of $${cashValue} to ${email}`);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create payment session');
-      }
+      // Record the transaction
+      const transactionId = `tx_${Date.now()}`;
       
-      const data = await response.json();
+      // Deduct coins when payment is initiated
+      setCoins(0);
       
-      if (data.success) {
-        // Deduct coins when payment is initiated
-        setCoins(0);
-        
-        // Record a "conversion" for CPA tracking
-        setAdConversions(prev => prev + 1);
-        
-        toast({
-          title: "💰 Cashout Initiated!",
-          description: `$${cashValue} has been sent to your account.`,
-          variant: "default",
-        });
-        
-        // Return success message
-        return "Payment processed successfully";
-      } else {
-        throw new Error('Invalid payment response');
-      }
+      // Record a "conversion" for CPA tracking
+      setAdConversions(prev => prev + 1);
+      
+      return transactionId;
     } catch (error) {
-      console.error('Stripe payment error:', error);
+      console.error('Payment error:', error);
       throw new Error('Payment processing failed. Please try again.');
     }
   };

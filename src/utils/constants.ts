@@ -6,4 +6,4 @@
 export const OWNER_STRIPE_ACCOUNT_ID = import.meta.env.VITE_APP_STRIPE_ACCOUNT_ID || 'acct_1RPfy4BRrjIUJ5cS';
 
 // API URL - configurable for different environments
-export const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:4000/api';
+export const API_BASE_URL = import.meta.env.VITE_APP_API_URL || '/api';
