@@ -10,7 +10,7 @@ import { useGame } from '@/contexts/GameContext';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
-import { OWNER_STRIPE_ACCOUNT_ID } from '@/utils/constants';
+import { OWNER_STRIPE_ACCOUNT_ID, API_BASE_URL } from '@/utils/constants';
 
 interface CashOutDialogProps {
   open: boolean;
@@ -63,56 +63,37 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       
       const amountInCents = Math.round(parseFloat(cashValue) * 100);
       
-      // Use the appropriate endpoint based on the selected method
-      let endpoint, requestData;
+      // Unified endpoint for all cashout methods
+      const endpoint = `${API_BASE_URL}/cashout`;
       
-      if (values.method === 'virtual-card') {
-        endpoint = 'http://localhost:4000/api/create-virtual-card';
-        requestData = { 
-          email: values.email,
-          metadata: {
-            amount: amountInCents,
-            user_email: values.email
-          }
-        };
-      } else if (values.method === 'bank-card') {
-        endpoint = 'http://localhost:4000/api/process-payout';
-        requestData = { 
-          email: values.email,
-          amount: amountInCents,
-          metadata: {
-            user_email: values.email
-          },
-          payment_method_id: OWNER_STRIPE_ACCOUNT_ID // This is where the error was
-        };
-      } else {
-        // Standard withdrawal
-        endpoint = 'http://localhost:4000/api/withdraw';
-        requestData = { 
-          amount: parseFloat(cashValue),
-          email: values.email
-        };
-      }
+      const requestData = {
+        amount: amountInCents,
+        email: values.email,
+        method: values.method,
+        metadata: {
+          user_email: values.email,
+          coins_exchanged: coins
+        }
+      };
       
       // Call the API to process the cashout
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer token` // Replace with actual auth token if needed
         },
         body: JSON.stringify(requestData)
       });
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Server returned an error");
+        throw new Error(errorData.error || "Payment processing failed");
       }
       
       const data = await response.json();
       console.log("Cashout response:", data);
       
-      if (data.success || data.id || data.transferId) {
+      if (data.success || data.id) {
         // Use the cashOut function from GameContext to reset coins
         await cashOut(values.email);
         
@@ -146,7 +127,6 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     }
   };
 
-  // Rest of the component remains the same
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#151b2a] border border-white/20 text-white max-w-lg">
