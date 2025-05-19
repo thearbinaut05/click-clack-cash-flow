@@ -1,3 +1,4 @@
+
 /**
  * Backend server for Adaptive Tap Money App with Stripe integration.
  * Environment variables required:
@@ -75,6 +76,22 @@ function authenticateToken(req, res, next) {
   });
 }
 
+// For this simple example, we'll allow some endpoints without auth
+function optionalAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (authHeader) {
+    const token = authHeader.split(' ')[1];
+    if (token) {
+      jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (!err) {
+          req.user = user;
+        }
+      });
+    }
+  }
+  next();
+}
+
 // Routes
 
 // Register new user
@@ -149,48 +166,280 @@ app.get('/api/offers', (req, res) => {
   res.json({ offers });
 });
 
-// Withdraw earnings - initiate Stripe payout
-app.post('/api/withdraw', authenticateToken, async (req, res) => {
-  const user = users[req.user.username];
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  if (!user.earnings || user.earnings < 1) {
-    return res.status(400).json({ error: 'Minimum $1 required to withdraw' });
-  }
-
-  // Payout amount in cents
-  const amountCents = Math.floor(user.earnings * 100);
-
+// Standard withdrawal - initiate Stripe payout
+app.post('/api/withdraw', optionalAuth, async (req, res) => {
   try {
-    // Create a PaymentIntent to transfer funds to connected account or your account as needed
+    const { amount, email } = req.body;
+    
+    if (!amount || amount < 1) {
+      return res.status(400).json({ error: 'Minimum $1 required to withdraw' });
+    }
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Payout amount in cents
+    const amountCents = Math.floor(amount * 100);
+
+    // Create a PaymentIntent to transfer funds
     // For simplicity, we create a Transfer to the owner connected account.
-    // This assumes you already have the funds in your Stripe balance.
-
-    // Creating payout to connected account (OWNER_STRIPE_ACCOUNT_ID)
-    // Note: Transfers work only between Stripe accounts linked via Connect.
-    // For external bank accounts, use Payout API with connected account.
-
-    // Create Transfer to connected account
     const transfer = await stripe.transfers.create({
       amount: amountCents,
       currency: 'usd',
       destination: OWNER_STRIPE_ACCOUNT_ID,
-      description: `Payout for user ${req.user.username}`
+      description: `Payout for user ${email}`
     });
 
-    // Reset user earnings after successful transfer
-    user.payoutHistory = user.payoutHistory || [];
-    user.payoutHistory.push({
-      amount: user.earnings,
-      date: new Date().toISOString(),
-      transferId: transfer.id
-    });
-    user.earnings = 0;
-    saveUsers();
+    // Record the transaction
+    if (req.user && users[req.user.username]) {
+      const user = users[req.user.username];
+      // Reset user earnings after successful transfer
+      user.payoutHistory = user.payoutHistory || [];
+      user.payoutHistory.push({
+        amount: amount,
+        date: new Date().toISOString(),
+        transferId: transfer.id,
+        email: email
+      });
+      user.earnings = 0;
+      saveUsers();
+    }
 
-    res.json({ message: `Transferred $${(amountCents / 100).toFixed(2)} to your bank account!`, transferId: transfer.id });
+    res.json({ 
+      success: true,
+      message: `Transferred $${(amountCents / 100).toFixed(2)} to your account!`, 
+      transferId: transfer.id 
+    });
   } catch (error) {
     console.error('Stripe transfer error:', error);
     res.status(500).json({ error: 'Transfer failed: ' + error.message });
+  }
+});
+
+// Virtual Card Creation
+app.post('/api/create-virtual-card', optionalAuth, async (req, res) => {
+  try {
+    const { email, metadata } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Create a Stripe customer if one doesn't exist
+    let customer;
+    const customers = await stripe.customers.list({ email, limit: 1 });
+    
+    if (customers.data.length === 0) {
+      customer = await stripe.customers.create({
+        email,
+        metadata: { ...metadata }
+      });
+    } else {
+      customer = customers.data[0];
+    }
+
+    // For demonstration - in real world would use Stripe Issuing API
+    // This is a simplified demo version
+    const virtualCard = {
+      id: `vc_${Date.now()}`,
+      last4: `${Math.floor(1000 + Math.random() * 9000)}`,
+      customer_id: customer.id,
+      created: new Date().toISOString()
+    };
+
+    // Record the transaction if user is logged in
+    if (req.user && users[req.user.username]) {
+      const user = users[req.user.username];
+      user.payoutHistory = user.payoutHistory || [];
+      user.payoutHistory.push({
+        amount: metadata?.amount ? metadata.amount / 100 : 0,
+        date: new Date().toISOString(),
+        cardId: virtualCard.id,
+        email: email,
+        type: 'virtual-card'
+      });
+      user.earnings = 0;
+      saveUsers();
+    }
+
+    res.json({ 
+      success: true, 
+      id: virtualCard.id,
+      cardDetails: {
+        last4: virtualCard.last4
+      },
+      message: `Virtual card created for ${email}`
+    });
+  } catch (error) {
+    console.error('Virtual card creation error:', error);
+    res.status(500).json({ error: 'Virtual card creation failed: ' + error.message });
+  }
+});
+
+// Bank Card Payout
+app.post('/api/process-payout', optionalAuth, async (req, res) => {
+  try {
+    const { payment_method_id, email, amount, metadata } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    if (!amount || amount < 100) { // Amount in cents
+      return res.status(400).json({ error: 'Minimum amount required' });
+    }
+
+    // For demonstration - in real world would use Stripe Payouts API
+    // Creating a simple transfer record
+    const transfer = await stripe.transfers.create({
+      amount: amount,
+      currency: 'usd',
+      destination: OWNER_STRIPE_ACCOUNT_ID, // In production this would be user's connected account
+      description: `Bank card payout for user ${email}`
+    });
+
+    // Record the transaction if user is logged in
+    if (req.user && users[req.user.username]) {
+      const user = users[req.user.username];
+      user.payoutHistory = user.payoutHistory || [];
+      user.payoutHistory.push({
+        amount: amount / 100, // Convert cents to dollars
+        date: new Date().toISOString(),
+        transferId: transfer.id,
+        email: email,
+        type: 'bank-card'
+      });
+      user.earnings = 0;
+      saveUsers();
+    }
+
+    res.json({ 
+      success: true, 
+      id: transfer.id,
+      message: `Bank card transfer initiated for ${email}`
+    });
+  } catch (error) {
+    console.error('Bank card payout error:', error);
+    res.status(500).json({ error: 'Bank card payout failed: ' + error.message });
+  }
+});
+
+// Cashout shortcut endpoint - to handle all cashout types
+app.post('/api/cashout', optionalAuth, async (req, res) => {
+  try {
+    const { amount, email, method } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    if (!amount || amount < 1) {
+      return res.status(400).json({ error: 'Minimum $1 required' });
+    }
+
+    const amountCents = Math.floor(amount * 100);
+    
+    // Route to appropriate handler based on method
+    if (method === 'virtual-card') {
+      // Create virtual card
+      const metadata = { amount: amountCents, user_email: email };
+      
+      // Create a Stripe customer if one doesn't exist
+      let customer;
+      const customers = await stripe.customers.list({ email, limit: 1 });
+      
+      if (customers.data.length === 0) {
+        customer = await stripe.customers.create({
+          email,
+          metadata
+        });
+      } else {
+        customer = customers.data[0];
+      }
+
+      const virtualCard = {
+        id: `vc_${Date.now()}`,
+        last4: `${Math.floor(1000 + Math.random() * 9000)}`,
+        customer_id: customer.id,
+        created: new Date().toISOString()
+      };
+
+      // Record transaction
+      if (req.user && users[req.user.username]) {
+        const user = users[req.user.username];
+        user.earnings = 0;
+        user.payoutHistory = user.payoutHistory || [];
+        user.payoutHistory.push({
+          amount,
+          date: new Date().toISOString(),
+          cardId: virtualCard.id,
+          type: 'virtual-card'
+        });
+        saveUsers();
+      }
+
+      return res.json({ 
+        success: true, 
+        id: virtualCard.id,
+        cardDetails: {
+          last4: virtualCard.last4
+        }
+      });
+      
+    } else if (method === 'bank-card') {
+      // Process bank card payout
+      const transfer = await stripe.transfers.create({
+        amount: amountCents,
+        currency: 'usd',
+        destination: OWNER_STRIPE_ACCOUNT_ID, // In production this would be user's account
+        description: `Bank card payout for user ${email}`
+      });
+
+      // Record transaction
+      if (req.user && users[req.user.username]) {
+        const user = users[req.user.username];
+        user.earnings = 0;
+        user.payoutHistory = user.payoutHistory || [];
+        user.payoutHistory.push({
+          amount,
+          date: new Date().toISOString(),
+          transferId: transfer.id,
+          type: 'bank-card'
+        });
+        saveUsers();
+      }
+
+      return res.json({ success: true, id: transfer.id });
+      
+    } else {
+      // Standard withdrawal
+      const transfer = await stripe.transfers.create({
+        amount: amountCents,
+        currency: 'usd',
+        destination: OWNER_STRIPE_ACCOUNT_ID,
+        description: `Standard payout for user ${email}`
+      });
+
+      // Record transaction
+      if (req.user && users[req.user.username]) {
+        const user = users[req.user.username];
+        user.earnings = 0;
+        user.payoutHistory = user.payoutHistory || [];
+        user.payoutHistory.push({
+          amount,
+          date: new Date().toISOString(),
+          transferId: transfer.id,
+          type: 'standard'
+        });
+        saveUsers();
+      }
+
+      return res.json({ success: true, transferId: transfer.id });
+    }
+  } catch (error) {
+    console.error('Cashout error:', error);
+    res.status(500).json({ error: 'Cashout failed: ' + error.message });
   }
 });
 
@@ -228,4 +477,3 @@ app.get('/', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);
 });
-

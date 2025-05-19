@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -60,23 +59,58 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         method: values.method 
       });
       
+      const amountInCents = Math.round(parseFloat(cashValue) * 100);
+      
+      // Use the appropriate endpoint based on the selected method
+      let endpoint, requestData;
+      
+      if (values.method === 'virtual-card') {
+        endpoint = 'http://localhost:4000/api/create-virtual-card';
+        requestData = { 
+          email: values.email,
+          metadata: {
+            amount: amountInCents,
+            user_email: values.email
+          }
+        };
+      } else if (values.method === 'bank-card') {
+        endpoint = 'http://localhost:4000/api/process-payout';
+        requestData = { 
+          email: values.email,
+          amount: amountInCents,
+          metadata: {
+            user_email: values.email
+          },
+          payment_method_id: OWNER_STRIPE_ACCOUNT_ID // This should be replaced with actual user's payment method
+        };
+      } else {
+        // Standard withdrawal
+        endpoint = 'http://localhost:4000/api/withdraw';
+        requestData = { 
+          amount: parseFloat(cashValue),
+          email: values.email
+        };
+      }
+      
       // Call the API to process the cashout
-      const response = await fetch('http://localhost:4000/api/cashout', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer token` // Replace with actual auth token if needed
         },
-        body: JSON.stringify({ 
-          amount: parseFloat(cashValue),
-          email: values.email,
-          method: values.method
-        })
+        body: JSON.stringify(requestData)
       });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Server returned an error");
+      }
       
       const data = await response.json();
       console.log("Cashout response:", data);
       
-      if (data.success) {
+      if (data.success || data.id || data.transferId) {
         // Use the cashOut function from GameContext to reset coins
         await cashOut(values.email);
         
@@ -85,8 +119,8 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         
         let successMessage = `You've successfully cashed out $${cashValue} to ${values.email}!`;
         
-        if (values.method === 'virtual-card' && data.cardDetails) {
-          successMessage = `Virtual card created! Last 4 digits: ${data.cardDetails.last4}. Details sent to ${values.email}`;
+        if (values.method === 'virtual-card') {
+          successMessage = `Virtual card created! Details sent to ${values.email}`;
         } else if (values.method === 'bank-card') {
           successMessage = `$${cashValue} will be transferred to your bank card. Details sent to ${values.email}`;
         }
@@ -110,6 +144,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     }
   };
 
+  // Rest of the component remains the same
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-[#151b2a] border border-white/20 text-white max-w-lg">
