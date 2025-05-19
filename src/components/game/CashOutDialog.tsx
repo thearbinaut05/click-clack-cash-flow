@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { useGame } from '@/contexts/GameContext';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
+import { OWNER_STRIPE_ACCOUNT_ID } from '@/utils/constants';
 
 interface CashOutDialogProps {
   open: boolean;
@@ -81,7 +83,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           metadata: {
             user_email: values.email
           },
-          payment_method_id: OWNER_STRIPE_ACCOUNT_ID // This should be replaced with actual user's payment method
+          payment_method_id: OWNER_STRIPE_ACCOUNT_ID // This is where the error was
         };
       } else {
         // Standard withdrawal
