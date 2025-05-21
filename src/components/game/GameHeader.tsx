@@ -3,6 +3,7 @@ import React from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { BadgeDollarSign, Clock } from 'lucide-react';
 import CashOutButton from './CashOutButton';
+import TestCashOutButton from './TestCashOutButton';
 
 const GameHeader: React.FC = () => {
   const { coins, energy, gems, level, tapCount } = useGame();
@@ -47,7 +48,10 @@ const GameHeader: React.FC = () => {
         </div>
       </div>
       
-      <CashOutButton />
+      <div className="mt-3 flex flex-col gap-2">
+        <CashOutButton />
+        <TestCashOutButton />
+      </div>
     </div>
   );
 };

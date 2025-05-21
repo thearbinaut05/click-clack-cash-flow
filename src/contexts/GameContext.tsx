@@ -1,6 +1,8 @@
+
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
+import AdMonetizationService from '@/services/AdMonetizationService';
 
 interface GameContextType {
   coins: number;
@@ -74,6 +76,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Counter for glitch mode opportunity
   const [glitchCounter, setGlitchCounter] = useState(0);
   
+  // Initialize ad monetization service
+  const [adMonetizationService] = useState(() => AdMonetizationService.getInstance());
+  
   // Handle tap/click
   const handleTap = () => {
     // Increase tap count
@@ -115,9 +120,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
     }
     
-    // Track ad metrics
+    // Track ad metrics with real-time service
     if (tapCount % 10 === 0) {
       setAdImpressions(prev => prev + 1);
+      adMonetizationService.recordImpression(selectedNFT?.rarity || 'general');
     }
     
     // Level up logic
@@ -140,7 +146,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   // Activate glitch mode
-  const activateGlitch = () => {
+  const activateGlitch = async () => {
     if (glitchCounter >= 20) {
       setGlitchMode(true);
       setGlitchCounter(0);
@@ -148,8 +154,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Glitch mode lasts for 5 seconds
       setTimeout(() => {
         setGlitchMode(false);
-        // Record a "conversion" for CPA tracking
+        
+        // Record a "conversion" for CPA tracking with real earnings
         setAdConversions(prev => prev + 1);
+        adMonetizationService.recordConversion('gaming').then(earnings => {
+          console.log(`CPA conversion recorded, earned: $${earnings.toFixed(2)}`);
+        });
       }, 5000);
       
       toast({
@@ -167,7 +177,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   // Buy an upgrade
-  const buyUpgrade = (upgrade: Upgrade) => {
+  const buyUpgrade = async (upgrade: Upgrade) => {
     // Check if player has enough currency
     if (upgrade.costType === 'coins' && coins >= upgrade.cost) {
       setCoins(prev => prev - upgrade.cost);
@@ -181,8 +191,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setEnergy(prev => Math.min(100, prev + upgrade.value));
       }
       
-      // Record an "ad click" for PPC tracking
+      // Record an "ad click" for PPC tracking with real earnings
       setAdClicks(prev => prev + 1);
+      const earnings = await adMonetizationService.recordClick('upgrades');
+      console.log(`PPC click recorded, earned: $${earnings.toFixed(2)}`);
       
       toast({
         title: "🛒 Upgrade Purchased!",
@@ -216,7 +228,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   // Buy and select NFT
-  const selectNFT = (nft: NFTItem) => {
+  const selectNFT = async (nft: NFTItem) => {
     if (nft.owned) {
       setSelectedNFT(nft);
       toast({
@@ -238,8 +250,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setNftItems(updatedNFTs);
       setSelectedNFT(nft);
       
-      // Record an "ad conversion" for CPA tracking
+      // Record an "ad conversion" for CPA tracking with real monetization
       setAdConversions(prev => prev + 1);
+      const earnings = await adMonetizationService.recordConversion(nft.rarity);
+      console.log(`NFT purchase conversion recorded, earned: $${earnings.toFixed(2)}`);
       
       toast({
         title: "🎉 NFT Acquired!",
@@ -289,26 +303,27 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
-    const amountInCents = Math.round(parseFloat(cashValue) * 100);
     
     try {
       console.log(`Processing cashout of $${cashValue} to ${email}`);
       
       // In automated mode, we process the payment through the API directly
-      // This ensures no user input is needed beyond initiating the process
       const response = await fetch(`${API_BASE_URL}/cashout`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          amount: amountInCents,
+          userId: `user_${Date.now()}`,
+          coins: coins,
+          payoutType: DEFAULT_CASHOUT_METHOD,
           email: email || DEFAULT_TEST_EMAIL,
-          method: DEFAULT_CASHOUT_METHOD,
           metadata: {
             gameSession: Date.now(),
-            coinCount: coins,
-            automated: true
+            level,
+            adImpressions,
+            adClicks,
+            adConversions
           }
         })
       });
@@ -324,8 +339,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Deduct coins when payment is initiated
       setCoins(0);
       
-      // Record a "conversion" for CPA tracking
+      // Record a "conversion" for CPA tracking with real monetization
       setAdConversions(prev => prev + 1);
+      await adMonetizationService.recordConversion('finance');
       
       return result.id || `tx_${Date.now()}`;
     } catch (error) {

@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { TestTube } from 'lucide-react';
+import { TestTube, BarChart3 } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
-import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
 import { toast } from '@/hooks/use-toast';
+import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
+import AdMonetizationService from '@/services/AdMonetizationService';
 
 const TestCashOutButton: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isMonetizationTest, setIsMonetizationTest] = useState(false);
   const { coins } = useGame();
   
   const handleTestCashOut = async () => {
@@ -15,11 +17,10 @@ const TestCashOutButton: React.FC = () => {
     
     try {
       // Calculate the cash value (100 coins = $1)
-      const cashValue = (coins / 100).toFixed(2);
-      const amountInCents = Math.round(parseFloat(cashValue) * 100);
+      const cashValue = Math.max(1, coins / 100).toFixed(2);
       
       console.log("Testing automated cashout system:", { 
-        amount: amountInCents, 
+        coins: coins,
         email: DEFAULT_TEST_EMAIL,
         method: DEFAULT_CASHOUT_METHOD 
       });
@@ -31,10 +32,10 @@ const TestCashOutButton: React.FC = () => {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          amount: amountInCents,
+          userId: `test_${Date.now()}`,
+          coins: Math.max(100, coins),
+          payoutType: DEFAULT_CASHOUT_METHOD,
           email: DEFAULT_TEST_EMAIL,
-          method: DEFAULT_CASHOUT_METHOD,
-          isTest: true, // Flag to indicate this is a test transaction
           metadata: {
             gameSession: Date.now(),
             coinCount: coins,
@@ -43,18 +44,20 @@ const TestCashOutButton: React.FC = () => {
         })
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Cashout system test failed');
+      const result = response.ok 
+        ? await response.json() 
+        : { success: false, error: `HTTP Error: ${response.status}` };
+      
+      if (result.success) {
+        console.log("Test cashout result:", result);
+        
+        toast({
+          title: "✅ System Test Successful",
+          description: `Cashout system is working properly! Transaction ID: ${result.details?.payoutId || result.details?.transferId || 'n/a'}`,
+        });
+      } else {
+        throw new Error(result.error || 'Cashout test failed');
       }
-      
-      const result = await response.json();
-      console.log("Test cashout result:", result);
-      
-      toast({
-        title: "✅ System Test Successful",
-        description: `Cashout system is working properly! Transaction ID: ${result.id || 'n/a'}`,
-      });
     } catch (error) {
       console.error("Test cashout error:", error);
       toast({
@@ -66,23 +69,75 @@ const TestCashOutButton: React.FC = () => {
       setIsProcessing(false);
     }
   };
+  
+  const handleTestMonetization = async () => {
+    setIsMonetizationTest(true);
+    
+    try {
+      const adService = AdMonetizationService.getInstance();
+      
+      // Test impression tracking
+      await adService.recordImpression('test');
+      
+      // Test click tracking
+      const ppcEarnings = await adService.recordClick('test');
+      
+      // Test conversion tracking
+      const cpaEarnings = await adService.recordConversion('test');
+      
+      // Test optimization
+      const optimization = await adService.optimizeAdStrategy();
+      
+      toast({
+        title: "✅ Monetization System Test",
+        description: `PPC: $${ppcEarnings.toFixed(2)}, CPA: $${cpaEarnings.toFixed(2)}, Best category: ${optimization.recommendedCategory}`,
+      });
+    } catch (error) {
+      console.error("Monetization test error:", error);
+      toast({
+        title: "❌ Monetization Test Failed",
+        description: error instanceof Error ? error.message : "Error testing monetization system",
+        variant: "destructive",
+      });
+    } finally {
+      setIsMonetizationTest(false);
+    }
+  };
 
   return (
-    <Button 
-      onClick={handleTestCashOut}
-      disabled={isProcessing}
-      className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white"
-      size="sm"
-    >
-      {isProcessing ? (
-        <>Testing...</>
-      ) : (
-        <>
-          <TestTube className="h-4 w-4" />
-          Test Cashout System
-        </>
-      )}
-    </Button>
+    <div className="flex flex-wrap gap-2">
+      <Button 
+        onClick={handleTestCashOut}
+        disabled={isProcessing}
+        className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white flex-1"
+        size="sm"
+      >
+        {isProcessing ? (
+          <>Testing...</>
+        ) : (
+          <>
+            <TestTube className="h-4 w-4" />
+            Test Cashout
+          </>
+        )}
+      </Button>
+      
+      <Button 
+        onClick={handleTestMonetization}
+        disabled={isMonetizationTest}
+        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white flex-1"
+        size="sm"
+      >
+        {isMonetizationTest ? (
+          <>Testing...</>
+        ) : (
+          <>
+            <BarChart3 className="h-4 w-4" />
+            Test Monetization
+          </>
+        )}
+      </Button>
+    </div>
   );
 };
 
