@@ -50,7 +50,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Configuration & Constants
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'your_stripe_secret_key_here';
 const DEFAULT_CONNECTED_ACCOUNT_ID = process.env.CONNECTED_ACCOUNT_ID || null;
 
