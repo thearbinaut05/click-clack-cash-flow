@@ -44,6 +44,89 @@ export type Database = {
         }
         Relationships: []
       }
+      agent_swarms: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          id: string
+          name: string
+          performance_metrics: Json | null
+          status: string | null
+          swarm_type: string
+          updated_at: string | null
+          vm_instance_id: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          name: string
+          performance_metrics?: Json | null
+          status?: string | null
+          swarm_type: string
+          updated_at?: string | null
+          vm_instance_id?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          performance_metrics?: Json | null
+          status?: string | null
+          swarm_type?: string
+          updated_at?: string | null
+          vm_instance_id?: string | null
+        }
+        Relationships: []
+      }
+      agent_tasks: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          payload: Json | null
+          priority: number | null
+          result: Json | null
+          started_at: string | null
+          status: string | null
+          swarm_id: string | null
+          task_type: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          priority?: number | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string | null
+          swarm_id?: string | null
+          task_type: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          payload?: Json | null
+          priority?: number | null
+          result?: Json | null
+          started_at?: string | null
+          status?: string | null
+          swarm_id?: string | null
+          task_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_tasks_swarm_id_fkey"
+            columns: ["swarm_id"]
+            isOneToOne: false
+            referencedRelation: "agent_swarms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       application_balance: {
         Row: {
           balance_amount: number
@@ -1469,6 +1552,51 @@ export type Database = {
           },
         ]
       }
+      market_offers: {
+        Row: {
+          category: string | null
+          conversion_rate: number | null
+          geographic_restrictions: Json | null
+          id: string
+          is_active: boolean | null
+          name: string
+          offer_id: string
+          payout_rate: number | null
+          performance_score: number | null
+          scraped_at: string | null
+          source: string
+          traffic_requirements: Json | null
+        }
+        Insert: {
+          category?: string | null
+          conversion_rate?: number | null
+          geographic_restrictions?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          offer_id: string
+          payout_rate?: number | null
+          performance_score?: number | null
+          scraped_at?: string | null
+          source: string
+          traffic_requirements?: Json | null
+        }
+        Update: {
+          category?: string | null
+          conversion_rate?: number | null
+          geographic_restrictions?: Json | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          offer_id?: string
+          payout_rate?: number | null
+          performance_score?: number | null
+          scraped_at?: string | null
+          source?: string
+          traffic_requirements?: Json | null
+        }
+        Relationships: []
+      }
       optimization_history: {
         Row: {
           created_at: string | null
@@ -1861,6 +1989,47 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      revenue_optimization_logs: {
+        Row: {
+          actual_improvement: number | null
+          agent_id: string | null
+          created_at: string | null
+          expected_improvement: number | null
+          id: string
+          new_config: Json | null
+          optimization_type: string
+          previous_config: Json | null
+        }
+        Insert: {
+          actual_improvement?: number | null
+          agent_id?: string | null
+          created_at?: string | null
+          expected_improvement?: number | null
+          id?: string
+          new_config?: Json | null
+          optimization_type: string
+          previous_config?: Json | null
+        }
+        Update: {
+          actual_improvement?: number | null
+          agent_id?: string | null
+          created_at?: string | null
+          expected_improvement?: number | null
+          id?: string
+          new_config?: Json | null
+          optimization_type?: string
+          previous_config?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "revenue_optimization_logs_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "autonomous_agents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       revenue_recognition_events: {
         Row: {
@@ -2351,6 +2520,36 @@ export type Database = {
           key?: string
           updated_at?: string | null
           value?: string
+        }
+        Relationships: []
+      }
+      stripe_configuration: {
+        Row: {
+          account_id: string | null
+          api_key: string
+          created_at: string | null
+          id: string
+          is_live: boolean | null
+          updated_at: string | null
+          webhook_secret: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          api_key: string
+          created_at?: string | null
+          id?: string
+          is_live?: boolean | null
+          updated_at?: string | null
+          webhook_secret?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          api_key?: string
+          created_at?: string | null
+          id?: string
+          is_live?: boolean | null
+          updated_at?: string | null
+          webhook_secret?: string | null
         }
         Relationships: []
       }

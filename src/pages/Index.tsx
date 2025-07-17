@@ -6,13 +6,14 @@ import TapArea from '@/components/game/TapArea';
 import GlitchSection from '@/components/game/GlitchSection';
 import ShopSection from '@/components/game/ShopSection';
 import StatsSection from '@/components/game/StatsSection';
+import AutonomousAgentDashboard from '@/components/game/AutonomousAgentDashboard';
 import { motion } from 'framer-motion';
 
 const Index = () => {
   return (
     <GameProvider>
       <div className="min-h-screen bg-gradient-to-b from-game-deep-blue to-[#09152d] overflow-hidden">
-        <div className="container max-w-md mx-auto px-4 py-6">
+        <div className="container max-w-7xl mx-auto px-4 py-6">
           {/* Background Bubbles */}
           {Array.from({ length: 12 }).map((_, i) => (
             <motion.div 
@@ -61,17 +62,39 @@ const Index = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="relative z-10"
+            className="relative z-10 space-y-8"
           >
-            <GameHeader />
-            <TapArea />
-            <GlitchSection />
-            <ShopSection />
-            <StatsSection />
+            <div className="text-center">
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 animate-pulse">
+                Click Clack Cash Flow
+              </h1>
+              <p className="text-gray-400 text-lg">
+                Autonomous AI-Powered Revenue Generation System
+              </p>
+            </div>
+            
+            {/* Autonomous Agent Dashboard */}
+            <AutonomousAgentDashboard />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              <div className="space-y-6">
+                <StatsSection />
+                <ShopSection />
+              </div>
+              
+              <div className="flex flex-col items-center justify-center">
+                <GameHeader />
+                <TapArea />
+              </div>
+              
+              <div className="space-y-6">
+                <GlitchSection />
+              </div>
+            </div>
             
             <div className="mt-6 text-center text-xs text-gray-400">
-              <p>Tap to earn coins! Find glitches for bonus rewards!</p>
-              <p className="mt-1">Collect unique NFTs to boost your earnings!</p>
+              <p>Autonomous AI system generating revenue 24/7!</p>
+              <p className="mt-1">No human oversight required - fully automated optimization!</p>
             </div>
           </motion.div>
         </div>
