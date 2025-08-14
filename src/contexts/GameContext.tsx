@@ -1,7 +1,6 @@
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
+import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD, PAYOUT_TYPES } from '@/utils/constants';
 import AdMonetizationService from '@/services/AdMonetizationService';
 
 interface GameContextType {
@@ -23,7 +22,7 @@ interface GameContextType {
   activateGlitch: () => void;
   selectNFT: (nft: NFTItem) => void;
   resetProgress: () => void;
-  cashOut: (email: string) => Promise<string>;
+  cashOut: (email: string, method?: string) => Promise<string>;
 }
 
 interface NFTItem {
@@ -295,7 +294,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   
   // Cash out functionality with Stripe
-  const cashOut = async (email: string): Promise<string> => {
+  const cashOut = async (email: string, method: string = DEFAULT_CASHOUT_METHOD): Promise<string> => {
     // Validate minimum cash out amount
     if (coins < 100) {
       throw new Error("You need at least 100 coins to cash out");
@@ -305,9 +304,22 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const cashValue = (coins / 100).toFixed(2);
     
     try {
-      console.log(`Processing cashout of $${cashValue} to ${email}`);
+      console.log(`Processing cashout of $${cashValue} to ${email} using method ${method}`);
       
-      // In automated mode, we process the payment through the API directly
+      // Map frontend method to backend payout type
+      let payoutType;
+      switch (method) {
+        case 'virtual-card':
+          payoutType = PAYOUT_TYPES.INSTANT_CARD;
+          break;
+        case 'bank-card':
+          payoutType = PAYOUT_TYPES.BANK_ACCOUNT;
+          break;
+        default:
+          payoutType = PAYOUT_TYPES.EMAIL;
+      }
+      
+      // Process the payment through the API
       const response = await fetch(`${API_BASE_URL}/cashout`, {
         method: 'POST',
         headers: {
@@ -316,7 +328,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         body: JSON.stringify({
           userId: `user_${Date.now()}`,
           coins: coins,
-          payoutType: DEFAULT_CASHOUT_METHOD,
+          payoutType: payoutType,
           email: email || DEFAULT_TEST_EMAIL,
           metadata: {
             gameSession: Date.now(),
@@ -330,7 +342,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Payment processing failed');
+        throw new Error(errorData.error || `Payment processing failed (Status: ${response.status})`);
       }
       
       const result = await response.json();
@@ -343,7 +355,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAdConversions(prev => prev + 1);
       await adMonetizationService.recordConversion('finance');
       
-      return result.id || `tx_${Date.now()}`;
+      // Return transaction ID for tracking
+      const transactionId = result.details?.payoutId || 
+                           result.details?.transferId || 
+                           result.details?.paymentIntentId || 
+                           `tx_${Date.now()}`;
+      
+      // Log the transaction for auditing
+      console.log(`Cashout transaction completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}`);
+      
+      return transactionId;
     } catch (error) {
       console.error('Payment error:', error);
       throw error instanceof Error ? error : new Error('Payment processing failed. Please try again later.');
@@ -393,3 +414,4 @@ export const useGame = (): GameContextType => {
   }
   return context;
 };
+
