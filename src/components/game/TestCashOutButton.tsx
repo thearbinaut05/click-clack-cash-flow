@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { TestTube, BarChart3 } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 import { toast } from '@/hooks/use-toast';
-import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
+import { DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
+import { supabase } from '@/integrations/supabase/client';
 import AdMonetizationService from '@/services/AdMonetizationService';
 
 const TestCashOutButton: React.FC = () => {
@@ -25,13 +26,9 @@ const TestCashOutButton: React.FC = () => {
         method: DEFAULT_CASHOUT_METHOD 
       });
       
-      // Make API call to test the cashout endpoint
-      const response = await fetch(`${API_BASE_URL}/cashout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Call the Supabase edge function instead of localhost
+      const { data: result, error } = await supabase.functions.invoke('cashout', {
+        body: {
           userId: `test_${Date.now()}`,
           coins: Math.max(100, coins),
           payoutType: DEFAULT_CASHOUT_METHOD,
@@ -41,22 +38,22 @@ const TestCashOutButton: React.FC = () => {
             coinCount: coins,
             testRun: true
           }
-        })
+        }
       });
       
-      const result = response.ok 
-        ? await response.json() 
-        : { success: false, error: `HTTP Error: ${response.status}` };
+      if (error) {
+        throw new Error(error.message || 'Cashout test failed');
+      }
       
-      if (result.success) {
+      if (result?.success) {
         console.log("Test cashout result:", result);
         
         toast({
           title: "✅ System Test Successful",
-          description: `Cashout system is working properly! Transaction ID: ${result.details?.payoutId || result.details?.transferId || 'n/a'}`,
+          description: `Cashout system is working properly! Transaction ID: ${result.details?.id || 'n/a'}`,
         });
       } else {
-        throw new Error(result.error || 'Cashout test failed');
+        throw new Error(result?.error || 'Cashout test failed');
       }
     } catch (error) {
       console.error("Test cashout error:", error);

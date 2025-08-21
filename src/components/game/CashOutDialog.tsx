@@ -11,7 +11,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { API_BASE_URL, CASHOUT_METHODS } from '@/utils/constants';
+import { CASHOUT_METHODS } from '@/utils/constants';
+import { supabase } from '@/integrations/supabase/client';
 import TestCashOutButton from './TestCashOutButton';
 
 interface CashOutDialogProps {
@@ -93,13 +94,9 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           payoutType = 'email';
       }
       
-      // Make real API call to the cashout endpoint
-      const response = await fetch(`${API_BASE_URL}/cashout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Call the Supabase edge function
+      const { data: result, error } = await supabase.functions.invoke('cashout', {
+        body: {
           userId: `user_${Date.now()}`,
           coins: coins,
           payoutType: payoutType,
@@ -108,15 +105,16 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
             gameSession: Date.now(),
             coinCount: coins
           }
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Payment processing failed (Status: ${response.status})`);
+      if (error) {
+        throw new Error(error.message || 'Payment processing failed');
       }
       
-      const result = await response.json();
+      if (!result?.success) {
+        throw new Error(result?.error || 'Payment processing failed');
+      }
       console.log("Cashout result:", result);
       
       // Reset coins in game context
