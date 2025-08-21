@@ -1,1 +1,10 @@
 project_id = "tqbybefpnwxukzqkanip"
+
+[functions.cashout]
+verify_jwt = false
+
+[functions.autonomous-agent-swarm]
+verify_jwt = false
+
+[functions.stripe-payment-processor]
+verify_jwt = false
