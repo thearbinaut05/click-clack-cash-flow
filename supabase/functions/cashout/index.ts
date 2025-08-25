@@ -49,6 +49,34 @@ serve(async (req) => {
 
     console.log(`Converting ${coins} coins to $${cashValue} (${amountInCents} cents)`);
 
+    // Check application balance - ensure there's enough autonomous revenue
+    const { data: balanceData, error: balanceError } = await supabase
+      .from('application_balance')
+      .select('balance_amount')
+      .eq('id', 1)
+      .single();
+
+    if (balanceError || !balanceData || balanceData.balance_amount < cashValue) {
+      throw new Error(`Insufficient autonomous revenue balance. Available: $${balanceData?.balance_amount || 0}, Required: $${cashValue}`);
+    }
+
+    console.log(`Application balance sufficient: $${balanceData.balance_amount} >= $${cashValue}`);
+
+    // Deduct from application balance first (before processing payment)
+    const { error: deductError } = await supabase
+      .from('application_balance')
+      .update({ 
+        balance_amount: balanceData.balance_amount - cashValue,
+        last_updated_at: new Date().toISOString()
+      })
+      .eq('id', 1);
+
+    if (deductError) {
+      throw new Error(`Failed to deduct from application balance: ${deductError.message}`);
+    }
+
+    console.log(`Deducted $${cashValue} from application balance. New balance: $${balanceData.balance_amount - cashValue}`);
+
     // Check if customer exists in Stripe, create if not
     let customer;
     const existingCustomers = await stripe.customers.list({ email, limit: 1 });
@@ -186,7 +214,7 @@ serve(async (req) => {
         throw new Error(`Unsupported payout type: ${payoutType}`);
     }
 
-    // Log the REAL transaction to database
+    // Log the REAL transaction to database with autonomous revenue tracking
     const { error: dbError } = await supabase
       .from('autonomous_revenue_transfers')
       .insert({
@@ -201,13 +229,39 @@ serve(async (req) => {
           email,
           stripe_customer_id: customer.id,
           transfer_details: transferResult,
-          real_transaction: true
+          real_transaction: true,
+          autonomous_revenue_deduction: true,
+          pre_balance: balanceData.balance_amount,
+          post_balance: balanceData.balance_amount - cashValue
         }
       });
 
     if (dbError) {
       console.error('Database logging error:', dbError);
-      // Don't fail the transaction for logging errors
+      // Don't fail the transaction for logging errors, but log to audit trail
+    }
+
+    // Log to transaction audit for compliance
+    const { error: auditError } = await supabase
+      .from('transaction_audit_log')
+      .insert({
+        transaction_id: transferResult.id,
+        transaction_type: 'cashout',
+        amount: cashValue,
+        stripe_transaction_id: transferResult.id,
+        user_email: email,
+        status: transferResult.status === 'succeeded' ? 'completed' : 'pending',
+        audit_details: {
+          autonomous_revenue_source: true,
+          coins_converted: coins,
+          payout_method: payoutType,
+          stripe_details: transferResult
+        },
+        compliance_status: 'approved'
+      });
+
+    if (auditError) {
+      console.error('Audit logging error:', auditError);
     }
 
     console.log('REAL cashout processed successfully:', transferResult.id);
@@ -215,8 +269,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       details: transferResult,
-      message: `Successfully processed REAL ${payoutType} cashout of $${cashValue.toFixed(2)}`,
-      isReal: true
+      message: `Successfully processed REAL ${payoutType} cashout of $${cashValue.toFixed(2)} from autonomous revenue`,
+      isReal: true,
+      autonomous_revenue_balance: balanceData.balance_amount - cashValue
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,

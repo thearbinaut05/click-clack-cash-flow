@@ -75,8 +75,48 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Counter for glitch mode opportunity
   const [glitchCounter, setGlitchCounter] = useState(0);
   
+  // Track application balance from autonomous revenue
+  const [applicationBalance, setApplicationBalance] = useState(0);
+  
   // Initialize ad monetization service
   const [adMonetizationService] = useState(() => AdMonetizationService.getInstance());
+  
+  // Sync coins with autonomous revenue from application balance
+  useEffect(() => {
+    const syncWithApplicationBalance = async () => {
+      try {
+        const response = await fetch('https://tqbybefpnwxukzqkanip.supabase.co/rest/v1/application_balance?id=eq.1', {
+          headers: {
+            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYnliZWZwbnd4dWt6cWthbmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjAyMDMsImV4cCI6MjA2MzkzNjIwM30.trGBxEF0wr4S_4gBteqV_TuWcIEMbzfDJiA1lga6Yko',
+            'Accept': 'application/json'
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            const balance = data[0].balance_amount;
+            setApplicationBalance(balance);
+            // Convert autonomous revenue to game coins (1 USD = 100 coins)
+            const autonomousCoins = Math.floor(balance * 100);
+            if (autonomousCoins > coins) {
+              setCoins(autonomousCoins);
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Could not sync with application balance:', error);
+      }
+    };
+    
+    // Initial sync
+    syncWithApplicationBalance();
+    
+    // Sync every 30 seconds
+    const syncInterval = setInterval(syncWithApplicationBalance, 30000);
+    
+    return () => clearInterval(syncInterval);
+  }, [coins]);
   
   // Handle tap/click
   const handleTap = () => {
@@ -293,11 +333,16 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
   
-  // Cash out functionality with Stripe
+  // Cash out functionality with Stripe - now using autonomous revenue
   const cashOut = async (email: string, method: string = DEFAULT_CASHOUT_METHOD): Promise<string> => {
     // Validate minimum cash out amount
-    if (coins < 100) {
-      throw new Error("You need at least 100 coins to cash out");
+    if (coins < 500) {
+      throw new Error("You need at least 500 coins ($5) to cash out from autonomous revenue");
+    }
+    
+    // Check if there's enough application balance
+    if (applicationBalance < (coins / 100)) {
+      throw new Error(`Insufficient autonomous revenue balance. Please wait for more revenue to be generated.`);
     }
     
     // Calculate cash value
@@ -319,11 +364,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           payoutType = PAYOUT_TYPES.EMAIL;
       }
       
-      // Process the payment through the API
-      const response = await fetch(`${API_BASE_URL}/cashout`, {
+      // Process the payment through the autonomous revenue system
+      const response = await fetch('https://tqbybefpnwxukzqkanip.supabase.co/functions/v1/cashout', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYnliZWZwbnd4dWt6cWthbmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjAyMDMsImV4cCI6MjA2MzkzNjIwM30.trGBxEF0wr4S_4gBteqV_TuWcIEMbzfDJiA1lga6Yko'
         },
         body: JSON.stringify({
           userId: `user_${Date.now()}`,
@@ -335,7 +381,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             level,
             adImpressions,
             adClicks,
-            adConversions
+            adConversions,
+            autonomous_revenue_source: true,
+            application_balance_before: applicationBalance
           }
         })
       });
@@ -346,10 +394,17 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
       
       const result = await response.json();
-      console.log("Automated cashout result:", result);
+      console.log("Autonomous revenue cashout result:", result);
       
-      // Deduct coins when payment is initiated
-      setCoins(0);
+      // Update local state to reflect the new autonomous revenue balance
+      if (result.autonomous_revenue_balance !== undefined) {
+        setApplicationBalance(result.autonomous_revenue_balance);
+        // Update coins to match new autonomous revenue balance
+        setCoins(Math.floor(result.autonomous_revenue_balance * 100));
+      } else {
+        // If balance not returned, reset coins to 0 as they were cashed out
+        setCoins(0);
+      }
       
       // Record a "conversion" for CPA tracking with real monetization
       setAdConversions(prev => prev + 1);
@@ -362,7 +417,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                            `tx_${Date.now()}`;
       
       // Log the transaction for auditing
-      console.log(`Cashout transaction completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}`);
+      console.log(`Autonomous revenue cashout completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}, Balance After=$${result.autonomous_revenue_balance || 0}`);
       
       return transactionId;
     } catch (error) {
