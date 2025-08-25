@@ -1,16 +1,17 @@
 // Stripe constants
-// Production environment values loaded from environment variables
+// Production environment values - using LIVE account details
 // IMPORTANT: These values should only be used client-side for display
-export const OWNER_STRIPE_ACCOUNT_ID = import.meta.env.VITE_APP_STRIPE_ACCOUNT_ID || 'acct_1RPfy4BRrjIUJ5cS';
+export const OWNER_STRIPE_ACCOUNT_ID = 'acct_1R4gD2LKSRNiN8vT';
 
-// API URL - configurable for different environments
-// In development, this should point to the local cashout server (http://localhost:4000)
-// In production, this should point to your deployed API endpoint
-export const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:4000';
+// API URL - using live Supabase edge functions
+// Production ready - using real Supabase edge function endpoints
+export const API_BASE_URL = 'https://tqbybefpnwxukzqkanip.supabase.co/functions/v1';
 
-// Default test values for automated cashout
-export const DEFAULT_TEST_EMAIL = 'thearbinaut05@gmail.com';
-export const DEFAULT_CASHOUT_AMOUNT = 100; // 100 coins = $1
+// LIVE production values for real cashouts
+export const DEFAULT_TEST_EMAIL = 'thearbinaut05@gmail.com'; // Keep for compatibility
+export const DEFAULT_PRODUCTION_EMAIL = 'thearbinaut05@gmail.com';
+export const DEFAULT_CASHOUT_AMOUNT = 500; // 500 coins = $5 minimum for real transactions
+export const MINIMUM_CASHOUT_AMOUNT = 500; // 500 coins = $5 minimum for real transactions
 export const DEFAULT_CASHOUT_METHOD = 'standard';
 
 // Cashout method types
@@ -27,11 +28,11 @@ export const PAYOUT_TYPES = {
   EMAIL: 'email'
 };
 
-// Affiliate Network API endpoints
+// Production API endpoints using Supabase edge functions
 export const AFFILIATE_API_ENDPOINTS = {
-  offers: `${API_BASE_URL}/affiliate/offers`,
-  stats: `${API_BASE_URL}/affiliate/stats`,
-  optimize: `${API_BASE_URL}/affiliate/optimize`
+  offers: `${API_BASE_URL}/autonomous-agent-swarm`,
+  stats: `${API_BASE_URL}/autonomous-agent-swarm`,
+  optimize: `${API_BASE_URL}/autonomous-agent-swarm`
 };
 
 // Ad network constants with real payout rates
