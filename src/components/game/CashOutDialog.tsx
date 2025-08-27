@@ -12,7 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { CASHOUT_METHODS } from '@/utils/constants';
-import { supabase } from '@/integrations/supabase/client';
+import { CashoutService } from '@/services/CashoutService';
 import TestCashOutButton from './TestCashOutButton';
 
 interface CashOutDialogProps {
@@ -79,8 +79,6 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
         method: values.method 
       });
       
-      const amountInCents = Math.round(parseFloat(cashValue) * 100);
-      
       // Map frontend method to backend payout type
       let payoutType;
       switch (values.method) {
@@ -94,27 +92,23 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           payoutType = 'email';
       }
       
-      // Call the Supabase edge function
-      const { data: result, error } = await supabase.functions.invoke('cashout', {
-        body: {
-          userId: `user_${Date.now()}`,
-          coins: coins,
-          payoutType: payoutType,
-          email: values.email,
-          metadata: {
-            gameSession: Date.now(),
-            coinCount: coins
-          }
+      // Use the CashoutService with fallback logic
+      const cashoutService = CashoutService.getInstance();
+      const result = await cashoutService.processCashout({
+        userId: `user_${Date.now()}`,
+        coins: coins,
+        payoutType: payoutType,
+        email: values.email,
+        metadata: {
+          gameSession: Date.now(),
+          coinCount: coins
         }
       });
       
-      if (error) {
-        throw new Error(error.message || 'Payment processing failed');
+      if (!result.success) {
+        throw new Error(result.error || 'Payment processing failed');
       }
       
-      if (!result?.success) {
-        throw new Error(result?.error || 'Payment processing failed');
-      }
       console.log("Cashout result:", result);
       
       // Reset coins in game context
@@ -127,6 +121,12 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       } else if (values.method === CASHOUT_METHODS.BANK_CARD) {
         successMessage = `$${cashValue} will be transferred to your bank card. Details sent to ${values.email}`;
       }
+      
+      // Add source information to the message
+      const sourceInfo = result.source === 'edge_function' ? 
+        ' (Processed via Supabase)' : 
+        ' (Processed via local server)';
+      successMessage += sourceInfo;
       
       setSuccess(successMessage);
       
