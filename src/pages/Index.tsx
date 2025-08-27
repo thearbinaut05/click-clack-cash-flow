@@ -7,6 +7,8 @@ import GlitchSection from '@/components/game/GlitchSection';
 import ShopSection from '@/components/game/ShopSection';
 import StatsSection from '@/components/game/StatsSection';
 import AutonomousAgentDashboard from '@/components/game/AutonomousAgentDashboard';
+import AutonomousRevenueDisplay from '@/components/game/AutonomousRevenueDisplay';
+import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
 import { motion } from 'framer-motion';
 
 const Index = () => {
@@ -73,8 +75,14 @@ const Index = () => {
               </p>
             </div>
             
-            {/* Autonomous Agent Dashboard */}
-            <AutonomousAgentDashboard />
+            {/* Revenue & External Accounts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AutonomousRevenueDisplay />
+              <AutonomousAgentDashboard />
+            </div>
+            
+            {/* External Accounts Panel */}
+            <ExternalAccountsPanel />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="space-y-6">
