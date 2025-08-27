@@ -75,6 +75,10 @@ const stripe = Stripe(stripeSecretKey);
 const COINS_TO_USD = 100;
 const MAX_RETRIES = 3;
 
+// USD Verification and External Access Configuration
+const USD_VERIFICATION_ENABLED = process.env.USD_VERIFICATION_ENABLED !== 'false';
+const USD_API_KEY = process.env.USD_API_KEY || 'usd-access-key-2024';
+
 // Setup Logger with timestamp & colors
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
@@ -115,20 +119,101 @@ const logger = winston.createLogger({
 });
 
 /**
- * Log a transaction with detailed information
+ * Verify USD amount calculation and log discrepancies
+ * @param {number} coins - Number of coins
+ * @param {number} calculatedUSD - Calculated USD amount
+ * @returns {Object} Verification result
+ */
+function verifyUSDCalculation(coins, calculatedUSD) {
+  const expectedUSD = coins / COINS_TO_USD;
+  const discrepancy = Math.abs(calculatedUSD - expectedUSD);
+  const tolerance = 0.01; // 1 cent tolerance
+  
+  const result = {
+    coins,
+    expectedUSD: Number(expectedUSD.toFixed(2)),
+    calculatedUSD: Number(calculatedUSD.toFixed(2)),
+    discrepancy: Number(discrepancy.toFixed(2)),
+    isValid: discrepancy <= tolerance,
+    timestamp: new Date().toISOString()
+  };
+  
+  if (!result.isValid) {
+    logger.error(`USD Calculation Error: ${JSON.stringify(result)}`);
+  } else {
+    logger.info(`USD Calculation Verified: ${coins} coins = $${calculatedUSD.toFixed(2)}`);
+  }
+  
+  return result;
+}
+
+/**
+ * Get current USD summary for external access
+ * @returns {Object} USD summary data
+ */
+async function getUSDSummary() {
+  try {
+    // This would normally call the Supabase function, but for simplicity
+    // we'll return a basic summary from the transaction logs
+    const transactionsFile = path.join(logsDir, 'transactions.json');
+    
+    if (!fs.existsSync(transactionsFile)) {
+      return {
+        total_processed_usd: 0,
+        total_transactions: 0,
+        last_updated: new Date().toISOString(),
+        server_status: 'active'
+      };
+    }
+    
+    const transactions = JSON.parse(fs.readFileSync(transactionsFile, 'utf8'));
+    const totalUSD = transactions
+      .filter(t => t.status === 'success')
+      .reduce((sum, t) => sum + (t.amountUSD || 0), 0);
+    
+    return {
+      total_processed_usd: Number(totalUSD.toFixed(2)),
+      total_transactions: transactions.filter(t => t.status === 'success').length,
+      last_updated: new Date().toISOString(),
+      server_status: 'active',
+      coins_to_usd_rate: COINS_TO_USD,
+      verification_enabled: USD_VERIFICATION_ENABLED
+    };
+  } catch (error) {
+    logger.error(`Failed to get USD summary: ${error.message}`);
+    return {
+      total_processed_usd: 0,
+      total_transactions: 0,
+      last_updated: new Date().toISOString(),
+      server_status: 'error',
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Log a transaction with detailed information and USD verification
  * @param {Object} transaction - Transaction details
  */
 function logTransaction(transaction) {
-  const { userId, amountUSD, payoutMethod, status, details, error } = transaction;
+  const { userId, amountUSD, payoutMethod, status, details, error, coins } = transaction;
+  
+  // Perform USD verification if enabled and coins are provided
+  let verification = null;
+  if (USD_VERIFICATION_ENABLED && coins && amountUSD) {
+    verification = verifyUSDCalculation(coins, amountUSD);
+  }
   
   const logEntry = {
     timestamp: new Date().toISOString(),
     transactionId: details?.payoutId || details?.transferId || details?.paymentIntentId || `tx_${Date.now()}`,
     userId,
     amountUSD,
+    coins: coins || null,
     payoutMethod,
     status,
-    error: error || null
+    error: error || null,
+    usd_verification: verification
   };
   
   // Log to console and file
@@ -458,6 +543,7 @@ app.post('/cashout', validateCashoutRequest, async (req, res) => {
       // Log successful transaction
       logTransaction({
         userId,
+        coins,
         amountUSD,
         payoutMethod: payoutType || 'adaptive',
         status: 'success',
@@ -476,6 +562,7 @@ app.post('/cashout', validateCashoutRequest, async (req, res) => {
       // Log failed transaction
       logTransaction({
         userId,
+        coins,
         amountUSD,
         payoutMethod: payoutType || 'adaptive',
         status: 'failed',
@@ -547,6 +634,105 @@ app.get('/', (req, res) => {
   `);
 });
 
+// External USD access endpoints (require API key)
+app.get('/api/usd/summary', (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (apiKey !== USD_API_KEY) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  
+  getUSDSummary().then(summary => {
+    res.json(summary);
+  }).catch(error => {
+    logger.error(`USD summary error: ${error.message}`);
+    res.status(500).json({ error: 'Failed to get USD summary' });
+  });
+});
+
+app.get('/api/usd/transactions', (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (apiKey !== USD_API_KEY) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const transactionsFile = path.join(logsDir, 'transactions.json');
+    
+    if (!fs.existsSync(transactionsFile)) {
+      return res.json({ transactions: [], total_usd: 0 });
+    }
+    
+    const data = fs.readFileSync(transactionsFile, 'utf8');
+    const allTransactions = JSON.parse(data);
+    const transactions = allTransactions.slice(-limit); // Get latest transactions
+    const totalUSD = transactions
+      .filter(t => t.status === 'success')
+      .reduce((sum, t) => sum + (t.amountUSD || 0), 0);
+    
+    res.json({ 
+      transactions,
+      total_transactions: transactions.length,
+      total_usd: Number(totalUSD.toFixed(2)),
+      last_updated: new Date().toISOString()
+    });
+  } catch (err) {
+    logger.error(`Error reading USD transactions: ${err.message}`);
+    res.status(500).json({ error: 'Error reading USD transactions' });
+  }
+});
+
+app.get('/api/usd/verification', (req, res) => {
+  const apiKey = req.headers['x-api-key'];
+  
+  if (apiKey !== USD_API_KEY) {
+    return res.status(401).json({ error: 'Invalid API key' });
+  }
+  
+  try {
+    const transactionsFile = path.join(logsDir, 'transactions.json');
+    
+    if (!fs.existsSync(transactionsFile)) {
+      return res.json({ 
+        verification_enabled: USD_VERIFICATION_ENABLED,
+        total_transactions: 0,
+        verified_transactions: 0,
+        failed_verifications: 0,
+        issues: []
+      });
+    }
+    
+    const data = fs.readFileSync(transactionsFile, 'utf8');
+    const transactions = JSON.parse(data);
+    
+    const verifiedTransactions = transactions.filter(t => t.usd_verification?.isValid === true).length;
+    const failedVerifications = transactions.filter(t => t.usd_verification?.isValid === false).length;
+    const issues = transactions
+      .filter(t => t.usd_verification?.isValid === false)
+      .map(t => ({
+        transactionId: t.transactionId,
+        coins: t.coins,
+        expectedUSD: t.usd_verification.expectedUSD,
+        actualUSD: t.usd_verification.calculatedUSD,
+        discrepancy: t.usd_verification.discrepancy
+      }));
+    
+    res.json({
+      verification_enabled: USD_VERIFICATION_ENABLED,
+      total_transactions: transactions.length,
+      verified_transactions: verifiedTransactions,
+      failed_verifications: failedVerifications,
+      coins_to_usd_rate: COINS_TO_USD,
+      issues: issues
+    });
+  } catch (err) {
+    logger.error(`Error reading verification data: ${err.message}`);
+    res.status(500).json({ error: 'Error reading verification data' });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -554,7 +740,10 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     stripeConfigured: stripeSecretKey !== 'your_stripe_secret_key_here',
-    connectedAccountConfigured: !!DEFAULT_CONNECTED_ACCOUNT_ID
+    connectedAccountConfigured: !!DEFAULT_CONNECTED_ACCOUNT_ID,
+    usd_verification_enabled: USD_VERIFICATION_ENABLED,
+    coins_to_usd_rate: COINS_TO_USD,
+    external_usd_api_enabled: true
   });
 });
 
