@@ -73,6 +73,14 @@ const Index = () => {
               <p className="text-gray-400 text-lg">
                 Autonomous AI-Powered Revenue Generation System
               </p>
+              <div className="mt-4">
+                <a 
+                  href="/compliance" 
+                  className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                >
+                  📊 Compliance Dashboard
+                </a>
+              </div>
             </div>
             
             {/* Revenue & External Accounts */}
