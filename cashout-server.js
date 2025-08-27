@@ -23,16 +23,22 @@
  * - The connected account must have the payout destinations configured (cards/bank accounts)
  */
 
-require('dotenv').config();
-const express = require('express');
-const bodyParser = require('body-parser');
-const Stripe = require('stripe');
-const winston = require('winston');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const fs = require('fs');
-const path = require('path');
+import dotenv from 'dotenv';
+import express from 'express';
+import Stripe from 'stripe';
+import winston from 'winston';
+import cors from 'cors';
+import helmet from 'helmet';
+import { rateLimit } from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// ES module equivalent of __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config();
 
 const app = express();
 
@@ -45,7 +51,7 @@ if (!fs.existsSync(logsDir)) {
 // Middleware Setup
 app.use(helmet()); // Secure HTTP headers
 app.use(cors()); // Enable CORS, can be configured for specific origins
-app.use(bodyParser.json()); // Parse JSON request bodies
+app.use(express.json()); // Parse JSON request bodies
 
 // Rate Limiting Middleware - Limit 100 requests per 15 minutes per IP
 const limiter = rateLimit({

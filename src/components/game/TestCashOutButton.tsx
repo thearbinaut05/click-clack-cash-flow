@@ -5,7 +5,7 @@ import { TestTube, BarChart3 } from 'lucide-react';
 import { useGame } from '@/contexts/GameContext';
 import { toast } from '@/hooks/use-toast';
 import { DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD } from '@/utils/constants';
-import { supabase } from '@/integrations/supabase/client';
+import { CashoutService } from '@/services/CashoutService';
 import AdMonetizationService from '@/services/AdMonetizationService';
 
 const TestCashOutButton: React.FC = () => {
@@ -26,34 +26,33 @@ const TestCashOutButton: React.FC = () => {
         method: DEFAULT_CASHOUT_METHOD 
       });
       
-      // Call the Supabase edge function instead of localhost
-      const { data: result, error } = await supabase.functions.invoke('cashout', {
-        body: {
-          userId: `test_${Date.now()}`,
-          coins: Math.max(100, coins),
-          payoutType: DEFAULT_CASHOUT_METHOD,
-          email: DEFAULT_TEST_EMAIL,
-          metadata: {
-            gameSession: Date.now(),
-            coinCount: coins,
-            testRun: true
-          }
+      // Use the CashoutService with fallback logic
+      const cashoutService = CashoutService.getInstance();
+      const result = await cashoutService.processCashout({
+        userId: `test_${Date.now()}`,
+        coins: Math.max(100, coins),
+        payoutType: DEFAULT_CASHOUT_METHOD,
+        email: DEFAULT_TEST_EMAIL,
+        metadata: {
+          gameSession: Date.now(),
+          coinCount: coins,
+          testRun: true
         }
       });
       
-      if (error) {
-        throw new Error(error.message || 'Cashout test failed');
-      }
-      
-      if (result?.success) {
+      if (result.success) {
         console.log("Test cashout result:", result);
+        
+        const sourceMessage = result.source === 'edge_function' ? 
+          'via Supabase Edge Function' : 
+          'via Local Server (fallback)';
         
         toast({
           title: "✅ System Test Successful",
-          description: `Cashout system is working properly! Transaction ID: ${result.details?.id || 'n/a'}`,
+          description: `Cashout system is working properly ${sourceMessage}! Transaction ID: ${result.details?.id || result.details?.paymentIntentId || 'n/a'}`,
         });
       } else {
-        throw new Error(result?.error || 'Cashout test failed');
+        throw new Error(result.error || 'Cashout test failed');
       }
     } catch (error) {
       console.error("Test cashout error:", error);
