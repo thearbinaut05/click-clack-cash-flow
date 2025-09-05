@@ -166,11 +166,13 @@ async function sweepDatabaseUSD() {
     const totalAmount = pendingRevenue.reduce((sum, tx) => sum + tx.amount, 0);
     logger.info(`Found ${pendingRevenue.length} pending transactions totaling $${totalAmount}`);
     
-    // Process each transaction (create transfers/payouts)
+    // Process each transaction (create transfers AND payouts to bank account)
     let processedCount = 0;
+    let totalProcessedAmount = 0;
+    
     for (const transaction of pendingRevenue) {
       try {
-        // Create transfer to correct account
+        // Step 1: Create transfer to correct account
         const transfer = await stripe.transfers.create({
           amount: Math.round(transaction.amount * 100),
           currency: 'usd',
@@ -178,29 +180,73 @@ async function sweepDatabaseUSD() {
           description: 'Automated USD sweep from database'
         });
         
-        // Update transaction status in database
+        logger.info(`Transfer created: $${transaction.amount} -> Transfer ID: ${transfer.id}`);
+        
+        // Step 2: Create payout to bank account (actual money transfer)
+        try {
+          const payout = await stripe.payouts.create({
+            amount: Math.round(transaction.amount * 100),
+            currency: 'usd',
+            description: `Real USD payout for $${transaction.amount}`,
+            statement_descriptor: 'CLICK-CLACK-CASH',
+            method: 'standard'
+          }, {
+            stripeAccount: CORRECT_ACCOUNT_ID
+          });
+          
+          logger.info(`Bank payout created: $${transaction.amount} -> Payout ID: ${payout.id}`);
+          
+          // Update transaction status as fully processed
+          await supabase
+            .from('autonomous_revenue_transactions')
+            .update({ 
+              status: 'paid_out',
+              stripe_transfer_id: transfer.id,
+              stripe_payout_id: payout.id,
+              processed_at: new Date().toISOString(),
+              payout_arrival_date: new Date(payout.arrival_date * 1000).toISOString()
+            })
+            .eq('id', transaction.id);
+            
+          processedCount++;
+          totalProcessedAmount += transaction.amount;
+          
+        } catch (payoutError) {
+          logger.error(`Payout failed for transaction ${transaction.id}: ${payoutError.message}`);
+          
+          // Update as transferred but payout failed
+          await supabase
+            .from('autonomous_revenue_transactions')
+            .update({ 
+              status: 'transfer_only',
+              stripe_transfer_id: transfer.id,
+              processed_at: new Date().toISOString(),
+              error_message: payoutError.message
+            })
+            .eq('id', transaction.id);
+        }
+        
+      } catch (transferError) {
+        logger.error(`Transfer failed for transaction ${transaction.id}: ${transferError.message}`);
+        
+        // Mark as failed
         await supabase
           .from('autonomous_revenue_transactions')
           .update({ 
-            status: 'transferred',
-            stripe_transfer_id: transfer.id,
-            processed_at: new Date().toISOString()
+            status: 'failed',
+            processed_at: new Date().toISOString(),
+            error_message: transferError.message
           })
           .eq('id', transaction.id);
-        
-        processedCount++;
-        logger.info(`Processed transaction: $${transaction.amount} -> Transfer ID: ${transfer.id}`);
-        
-      } catch (transferError) {
-        logger.error(`Failed to process transaction ${transaction.id}: ${transferError.message}`);
       }
     }
     
     return {
       success: true,
       processed: processedCount,
-      total_amount: totalAmount,
-      total_transactions: pendingRevenue.length
+      total_amount: totalProcessedAmount,
+      total_transactions: pendingRevenue.length,
+      message: `Successfully processed ${processedCount} transactions totaling $${totalProcessedAmount.toFixed(2)} to bank account`
     };
     
   } catch (error) {
