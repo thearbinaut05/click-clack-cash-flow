@@ -98,6 +98,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Track application balance from autonomous revenue
   const [applicationBalance, setApplicationBalance] = useState(0);
   
+  // NFT positions for profit maximization
+  const [nftPositions, setNFTPositions] = useState<NFTPosition[]>(INITIAL_NFTS);
+  
   // Initialize ad monetization service
   const [adMonetizationService] = useState(() => AdMonetizationService.getInstance());
   
@@ -458,43 +461,6 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (energy < 100) {
         setEnergy(prev => Math.min(100, prev + 1));
       }
-    }, 3000); // Regenerate 1 energy every 3 seconds
-    
-    return () => clearInterval(energyInterval);
-  }, [energy]);
-  
-  const value = {
-    coins,
-    energy,
-    gems,
-    clickPower,
-    clickMultiplier,
-    level,
-    tapCount,
-    adImpressions,
-    adClicks,
-    adConversions,
-    glitchMode,
-    nftItems,
-    selectedNFT,
-    handleTap,
-    buyUpgrade,
-    activateGlitch,
-    selectNFT,
-    resetProgress,
-    cashOut,
-  };
-  
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
-};
-
-export const useGame = (): GameContextType => {
-  const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGame must be used within a GameProvider');
-  }
-  return context;
-};
     }, 3000); // Regenerate 1 energy every 3 seconds
     
     return () => clearInterval(energyInterval);
