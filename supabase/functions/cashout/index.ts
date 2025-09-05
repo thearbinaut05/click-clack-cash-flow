@@ -210,6 +210,62 @@ serve(async (req) => {
         }
         break;
 
+      case 'bitcoin':
+      case 'btc':
+      case 'ethereum':
+      case 'eth':
+      case 'litecoin':
+      case 'ltc':
+        // Create a simulated cryptocurrency payout
+        const cryptoType = payoutType === 'btc' ? 'bitcoin' : 
+                          (payoutType === 'eth' ? 'ethereum' : 
+                          (payoutType === 'ltc' ? 'litecoin' : payoutType));
+        
+        const exchangeRates = {
+          bitcoin: 42000,
+          ethereum: 2500,
+          litecoin: 85
+        };
+        
+        const cryptoAmount = cashValue / exchangeRates[cryptoType];
+        const mockTxId = `${cryptoType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        transferResult = {
+          id: mockTxId,
+          object: 'crypto_transfer',
+          amount: amountInCents,
+          currency: 'usd',
+          crypto_currency: cryptoType,
+          crypto_amount: cryptoAmount,
+          description: `Cryptocurrency payout: ${cryptoAmount.toFixed(6)} ${cryptoType.toUpperCase()}`,
+          status: 'pending',
+          created: Math.floor(Date.now() / 1000),
+          method: 'cryptocurrency',
+          recipient_email: email
+        };
+        break;
+
+      case 'paypal':
+        // Create a simulated PayPal payout
+        const mockPayPalTxId = `PP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const paypalFee = (cashValue * 0.029) + 0.30;
+        const netAmount = cashValue - paypalFee;
+        
+        transferResult = {
+          id: mockPayPalTxId,
+          object: 'paypal_transfer',
+          amount: Math.round(netAmount * 100),
+          currency: 'usd',
+          gross_amount: cashValue,
+          paypal_fee: paypalFee,
+          description: `PayPal payout to ${email}`,
+          status: 'pending',
+          created: Math.floor(Date.now() / 1000),
+          method: 'paypal',
+          recipient_email: email
+        };
+        break;
+
       default:
         throw new Error(`Unsupported payout type: ${payoutType}`);
     }

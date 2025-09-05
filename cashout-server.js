@@ -332,6 +332,14 @@ async function adaptivePayoutAgent(payoutRequest) {
           payoutResult = await performBankAccountPayout(activeAccountId, amountUSD);
         } else if (method === 'email') {
           payoutResult = await performEmailPayout(email, amountUSD);
+        } else if (method === 'bitcoin' || method === 'btc') {
+          payoutResult = await performCryptoPayout(email, amountUSD, 'bitcoin');
+        } else if (method === 'ethereum' || method === 'eth') {
+          payoutResult = await performCryptoPayout(email, amountUSD, 'ethereum');
+        } else if (method === 'litecoin' || method === 'ltc') {
+          payoutResult = await performCryptoPayout(email, amountUSD, 'litecoin');
+        } else if (method === 'paypal') {
+          payoutResult = await performPayPalPayout(email, amountUSD);
         } else {
           throw new Error(`Unknown payout method: ${method}`);
         }
@@ -611,6 +619,104 @@ async function performEmailPayout(email, amountUSD) {
   }
 }
 
+/**
+ * Perform Cryptocurrency Payout
+ * @param {string} email - recipient email
+ * @param {number} amountUSD - amount in USD
+ * @param {string} cryptoType - 'bitcoin', 'ethereum', or 'litecoin'
+ * @returns {Promise<Object>}
+ */
+async function performCryptoPayout(email, amountUSD, cryptoType) {
+  try {
+    logger.info(`Attempting cryptocurrency payout: ${cryptoType} to ${email} for $${amountUSD}`);
+    
+    // Mock cryptocurrency exchange rates (in a real implementation, fetch from API)
+    const exchangeRates = {
+      bitcoin: 42000,    // $42,000 per BTC
+      ethereum: 2500,    // $2,500 per ETH
+      litecoin: 85       // $85 per LTC
+    };
+    
+    const cryptoAmount = amountUSD / exchangeRates[cryptoType];
+    const mockTxId = `${cryptoType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Simulate crypto payout processing time
+    await delay(1000);
+    
+    logger.info(`Cryptocurrency payout simulated: ${cryptoAmount.toFixed(6)} ${cryptoType.toUpperCase()} to ${email}`);
+    
+    return {
+      success: true,
+      message: `Cryptocurrency payout initiated: ${cryptoAmount.toFixed(6)} ${cryptoType.toUpperCase()}`,
+      transactionId: mockTxId,
+      cryptoType: cryptoType,
+      cryptoAmount: cryptoAmount,
+      usdAmount: amountUSD,
+      exchangeRate: exchangeRates[cryptoType],
+      recipient: email,
+      details: {
+        id: mockTxId,
+        amount: amountUSD,
+        currency: 'usd',
+        crypto_currency: cryptoType,
+        crypto_amount: cryptoAmount,
+        status: 'pending',
+        recipient_email: email,
+        description: `Cryptocurrency payout: ${cryptoAmount.toFixed(6)} ${cryptoType.toUpperCase()}`
+      }
+    };
+  } catch (error) {
+    logger.error(`Cryptocurrency payout failed: ${error.message}`);
+    return { success: false, error: error.message || 'Cryptocurrency payout failed' };
+  }
+}
+
+/**
+ * Perform PayPal Payout
+ * @param {string} email - PayPal email address
+ * @param {number} amountUSD - amount in USD
+ * @returns {Promise<Object>}
+ */
+async function performPayPalPayout(email, amountUSD) {
+  try {
+    logger.info(`Attempting PayPal payout to ${email} for $${amountUSD}`);
+    
+    const mockPayPalTxId = `PP_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Simulate PayPal API processing time
+    await delay(1500);
+    
+    // Mock PayPal fee calculation (typically 2.9% + $0.30 for PayPal)
+    const paypalFee = (amountUSD * 0.029) + 0.30;
+    const netAmount = amountUSD - paypalFee;
+    
+    logger.info(`PayPal payout simulated: $${netAmount.toFixed(2)} to ${email} (fee: $${paypalFee.toFixed(2)})`);
+    
+    return {
+      success: true,
+      message: `PayPal payout initiated to ${email}`,
+      transactionId: mockPayPalTxId,
+      grossAmount: amountUSD,
+      fee: paypalFee,
+      netAmount: netAmount,
+      recipient: email,
+      details: {
+        id: mockPayPalTxId,
+        amount: Math.round(netAmount * 100), // in cents
+        currency: 'usd',
+        status: 'pending',
+        recipient_email: email,
+        gross_amount: amountUSD,
+        paypal_fee: paypalFee,
+        description: `PayPal payout to ${email}`
+      }
+    };
+  } catch (error) {
+    logger.error(`PayPal payout failed: ${error.message}`);
+    return { success: false, error: error.message || 'PayPal payout failed' };
+  }
+}
+
 // Onboarding link endpoint for adding payment methods
 app.post('/onboarding-link', async (req, res) => {
   try {
@@ -736,6 +842,53 @@ app.get('/transactions', (req, res) => {
   } catch (err) {
     logger.error(`Error reading transactions: ${err.message}`);
     res.status(500).json({ success: false, error: 'Error reading transactions' });
+  }
+});
+
+// Transaction statistics endpoint
+app.get('/transactions/stats', (req, res) => {
+  try {
+    const transactionsFile = path.join(logsDir, 'transactions.json');
+    
+    if (!fs.existsSync(transactionsFile)) {
+      return res.json({ stats: [] });
+    }
+    
+    const data = fs.readFileSync(transactionsFile, 'utf8');
+    const transactions = JSON.parse(data);
+    
+    // Calculate stats by payout method
+    const methodStats = {};
+    
+    transactions.forEach(tx => {
+      const method = tx.payoutMethod || 'unknown';
+      if (!methodStats[method]) {
+        methodStats[method] = {
+          method,
+          count: 0,
+          totalAmount: 0,
+          successCount: 0
+        };
+      }
+      
+      methodStats[method].count++;
+      methodStats[method].totalAmount += tx.amountUSD || 0;
+      
+      if (tx.status === 'success' || tx.status === 'completed') {
+        methodStats[method].successCount++;
+      }
+    });
+    
+    // Convert to array and calculate success rates
+    const stats = Object.values(methodStats).map(stat => ({
+      ...stat,
+      successRate: stat.count > 0 ? (stat.successCount / stat.count) * 100 : 0
+    }));
+    
+    res.json({ stats });
+  } catch (err) {
+    logger.error(`Error calculating transaction stats: ${err.message}`);
+    res.status(500).json({ success: false, error: 'Error calculating stats' });
   }
 });
 
