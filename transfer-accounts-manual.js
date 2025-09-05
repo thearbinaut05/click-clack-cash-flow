@@ -124,7 +124,15 @@ async function manualAccountTransfer() {
 manualAccountTransfer()
   .then(result => {
     console.log('\n=== TRANSFER RESULT ===');
-    console.log(JSON.stringify(result, null, 2));
+    // Sanitize sensitive fields before logging result
+    const redacted = { ...result };
+    if (redacted.to_account) {
+      redacted.to_account = '[REDACTED]';
+    }
+    if (redacted.from_account) {
+      redacted.from_account = '[REDACTED]';
+    }
+    console.log(JSON.stringify(redacted, null, 2));
     
     if (result.manual_steps_required) {
       console.log('\n📋 MANUAL STEPS REQUIRED:');
