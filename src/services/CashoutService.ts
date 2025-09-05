@@ -45,7 +45,14 @@ export class CashoutService {
       'instant_card': 'instant_card', // Instant card stays the same
       'bank_account': 'bank_account', // Bank account stays the same
       'virtual-card': 'instant_card', // Virtual card maps to instant card
-      'bank-card': 'bank_account'     // Bank card maps to bank account
+      'bank-card': 'bank_account',    // Bank card maps to bank account
+      'bitcoin': 'bitcoin',           // Bitcoin cryptocurrency
+      'btc': 'bitcoin',              // BTC alias for bitcoin
+      'ethereum': 'ethereum',         // Ethereum cryptocurrency
+      'eth': 'ethereum',             // ETH alias for ethereum
+      'litecoin': 'litecoin',         // Litecoin cryptocurrency
+      'ltc': 'litecoin',             // LTC alias for litecoin
+      'paypal': 'paypal'             // PayPal integration
     };
     
     return mapping[payoutType] || 'email'; // Default to email if unknown

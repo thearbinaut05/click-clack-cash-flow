@@ -9,6 +9,7 @@ import StatsSection from '@/components/game/StatsSection';
 import AutonomousAgentDashboard from '@/components/game/AutonomousAgentDashboard';
 import AutonomousRevenueDisplay from '@/components/game/AutonomousRevenueDisplay';
 import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
+import TransactionStatusDashboard from '@/components/game/TransactionStatusDashboard';
 import { motion } from 'framer-motion';
 
 const Index = () => {
@@ -83,6 +84,9 @@ const Index = () => {
             
             {/* External Accounts Panel */}
             <ExternalAccountsPanel />
+            
+            {/* Transaction Status Dashboard */}
+            <TransactionStatusDashboard />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="space-y-6">
