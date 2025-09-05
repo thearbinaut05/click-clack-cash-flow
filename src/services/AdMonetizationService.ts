@@ -1,5 +1,6 @@
 
 import { AD_NETWORKS, AFFILIATE_API_ENDPOINTS } from '@/utils/constants';
+import RealAdNetworkService from './RealAdNetworkService';
 
 export interface AdPerformanceMetrics {
   impressions: number;
@@ -40,10 +41,13 @@ class AdMonetizationService {
   private currentOffers: OfferData[] = [];
   private userSegment: string = 'general';
   private lastOptimization: Date | null = null;
+  private realAdNetworkService: RealAdNetworkService;
   
   private constructor() {
     // Initialize with some default offers if API is not available
     this.loadInitialOffers();
+    // Initialize real ad network service
+    this.realAdNetworkService = RealAdNetworkService.getInstance();
   }
   
   static getInstance(): AdMonetizationService {
@@ -158,6 +162,33 @@ class AdMonetizationService {
   
   async recordClick(category: string = 'general'): Promise<number> {
     const currentMetrics = this.getCurrentMetrics();
+    
+    // Try to generate real earnings first
+    try {
+      const realEarnings = await this.realAdNetworkService.recordRealPPCClick(category);
+      
+      if (realEarnings && realEarnings.amount > 0) {
+        // Real earnings generated - use actual amount
+        const ppcRate = realEarnings.amount;
+        
+        // Update metrics with real earnings
+        this.metrics.push({
+          ...currentMetrics,
+          clicks: currentMetrics.clicks + 1,
+          ctr: (currentMetrics.clicks + 1) / (currentMetrics.impressions || 1),
+          category,
+          earnings: currentMetrics.earnings + ppcRate,
+          timestamp: new Date()
+        });
+        
+        console.log(`Real PPC earnings: $${ppcRate} from ${realEarnings.network}`);
+        return ppcRate;
+      }
+    } catch (error) {
+      console.warn('Real PPC click failed, falling back to simulation:', error);
+    }
+    
+    // Fallback to simulated earnings if real networks unavailable
     const ppcRate = this.calculatePPCRate(currentMetrics.clicks + 1, category);
     
     // Update metrics
@@ -179,7 +210,8 @@ class AdMonetizationService {
           type: 'click',
           category,
           earnings: ppcRate,
-          timestamp: new Date()
+          timestamp: new Date(),
+          real_monetization: false // Mark as simulated
         })
       });
     } catch (error) {
@@ -191,6 +223,40 @@ class AdMonetizationService {
   
   async recordConversion(category: string = 'general'): Promise<number> {
     const currentMetrics = this.getCurrentMetrics();
+    
+    // Try to generate real earnings first
+    try {
+      const realEarnings = await this.realAdNetworkService.recordRealCPAConversion(category);
+      
+      if (realEarnings && realEarnings.amount > 0) {
+        // Real earnings generated - use actual amount
+        const cpaRate = realEarnings.amount;
+        
+        // Update metrics with real earnings
+        this.metrics.push({
+          ...currentMetrics,
+          conversions: currentMetrics.conversions + 1,
+          cvr: (currentMetrics.conversions + 1) / (currentMetrics.clicks || 1),
+          category,
+          earnings: currentMetrics.earnings + cpaRate,
+          timestamp: new Date()
+        });
+        
+        console.log(`Real CPA earnings: $${cpaRate} from ${realEarnings.network}`);
+        
+        // Run optimization algorithm after real conversions
+        if (!this.lastOptimization || 
+            (new Date().getTime() - this.lastOptimization.getTime()) > 3600000) { // 1 hour
+          this.optimizeAdStrategy();
+        }
+        
+        return cpaRate;
+      }
+    } catch (error) {
+      console.warn('Real CPA conversion failed, falling back to simulation:', error);
+    }
+    
+    // Fallback to simulated earnings if real networks unavailable
     const cpaRate = this.calculateCPARate(currentMetrics.conversions + 1, category);
     
     // Update metrics
@@ -212,7 +278,8 @@ class AdMonetizationService {
           type: 'conversion',
           category,
           earnings: cpaRate,
-          timestamp: new Date()
+          timestamp: new Date(),
+          real_monetization: false // Mark as simulated
         })
       });
     } catch (error) {
@@ -427,6 +494,38 @@ class AdMonetizationService {
       ppc: ppcEarnings,
       cpa: totalEarnings - ppcEarnings
     };
+  }
+  
+  /**
+   * Record a real CPL (Cost Per Lead) lead for lead generation
+   */
+  async recordLead(leadData: any, category: string = 'general'): Promise<number> {
+    try {
+      const realEarnings = await this.realAdNetworkService.recordRealCPLLead(leadData);
+      
+      if (realEarnings && realEarnings.amount > 0) {
+        console.log(`Real CPL earnings: $${realEarnings.amount} from ${realEarnings.network}`);
+        return realEarnings.amount;
+      }
+    } catch (error) {
+      console.warn('Real CPL lead failed:', error);
+    }
+    
+    return 0;
+  }
+  
+  /**
+   * Get real ad network configuration status
+   */
+  getRealNetworkStatus(): { configured: number; total: number; networks: string[] } {
+    return this.realAdNetworkService.getNetworkStatus();
+  }
+  
+  /**
+   * Retry any pending real monetization transactions
+   */
+  async retryPendingTransactions(): Promise<void> {
+    await this.realAdNetworkService.retryPendingTransactions();
   }
 }
 
