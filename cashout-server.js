@@ -51,7 +51,11 @@ if (!fs.existsSync(logsDir)) {
 // Middleware Setup
 app.use(helmet()); // Secure HTTP headers
 app.use(cors()); // Enable CORS, can be configured for specific origins
-app.use(express.json()); // Parse JSON request bodies
+
+// Special middleware for webhook endpoint - needs raw body for signature verification
+app.use('/webhook', express.raw({ type: 'application/json' }));
+
+app.use(express.json()); // Parse JSON request bodies for other endpoints
 
 // Rate Limiting Middleware - Limit 100 requests per 15 minutes per IP
 const limiter = rateLimit({
@@ -67,6 +71,7 @@ app.use(limiter);
 const PORT = process.env.PORT || 4000;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY || 'your_stripe_secret_key_here';
 const DEFAULT_CONNECTED_ACCOUNT_ID = process.env.CONNECTED_ACCOUNT_ID || null;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || null;
 
 if (stripeSecretKey === 'your_stripe_secret_key_here') {
   console.error('ERROR: Please set your STRIPE_SECRET_KEY in .env file.');
@@ -75,6 +80,12 @@ if (stripeSecretKey === 'your_stripe_secret_key_here') {
 
 if (!DEFAULT_CONNECTED_ACCOUNT_ID) {
   console.warn('Warning: No default CONNECTED_ACCOUNT_ID set in .env. You must provide accountId in each payout request unless using email payout.');
+}
+
+if (!STRIPE_WEBHOOK_SECRET) {
+  console.warn('Warning: No STRIPE_WEBHOOK_SECRET set in .env. Webhook endpoint will not verify signatures.');
+} else {
+  console.log('Stripe webhook secret configured for signature verification.');
 }
 
 const stripe = Stripe(stripeSecretKey);
@@ -867,10 +878,49 @@ app.get('/health', (req, res) => {
     version: '1.0.0',
     stripeConfigured: stripeSecretKey !== 'your_stripe_secret_key_here',
     connectedAccountConfigured: !!DEFAULT_CONNECTED_ACCOUNT_ID,
+    webhookConfigured: !!STRIPE_WEBHOOK_SECRET,
     usd_verification_enabled: USD_VERIFICATION_ENABLED,
     coins_to_usd_rate: COINS_TO_USD,
     external_usd_api_enabled: true
   });
+});
+
+// Webhook status and logs endpoint
+app.get('/webhook/status', (req, res) => {
+  try {
+    const webhookLogFile = path.join(logsDir, 'webhook-events.json');
+    
+    if (!fs.existsSync(webhookLogFile)) {
+      return res.json({
+        webhook_configured: !!STRIPE_WEBHOOK_SECRET,
+        total_events: 0,
+        recent_events: [],
+        status: 'no_events_received'
+      });
+    }
+    
+    const webhookLogs = JSON.parse(fs.readFileSync(webhookLogFile, 'utf8'));
+    const recentEvents = webhookLogs.slice(-10); // Last 10 events
+    
+    res.json({
+      webhook_configured: !!STRIPE_WEBHOOK_SECRET,
+      total_events: webhookLogs.length,
+      recent_events: recentEvents.map(event => ({
+        id: event.id,
+        type: event.type,
+        created: event.created,
+        processed_at: event.processed_at,
+        status: event.status
+      })),
+      status: 'active'
+    });
+  } catch (error) {
+    logger.error(`Error getting webhook status: ${error.message}`);
+    res.status(500).json({ 
+      error: 'Error reading webhook status',
+      webhook_configured: !!STRIPE_WEBHOOK_SECRET 
+    });
+  }
 });
 
 /**
@@ -993,6 +1043,183 @@ app.post('/transfer-accounts', async (req, res) => {
     });
   }
 });
+
+// Stripe webhook endpoint
+app.post('/webhook', async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+
+  let event;
+
+  try {
+    if (!STRIPE_WEBHOOK_SECRET) {
+      logger.warn('Webhook received but no webhook secret configured. Processing without verification.');
+      event = JSON.parse(req.body);
+    } else {
+      // Verify webhook signature
+      event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+      logger.info(`Webhook signature verified for event: ${event.type}`);
+    }
+  } catch (err) {
+    logger.error(`Webhook signature verification failed: ${err.message}`);
+    return res.status(400).send(`Webhook Error: ${err.message}`);
+  }
+
+  // Handle the event
+  try {
+    switch (event.type) {
+      case 'payment_intent.succeeded':
+        await handlePaymentIntentSucceeded(event.data.object);
+        break;
+      case 'payment_intent.payment_failed':
+        await handlePaymentIntentFailed(event.data.object);
+        break;
+      case 'transfer.created':
+        await handleTransferCreated(event.data.object);
+        break;
+      case 'transfer.updated':
+        await handleTransferUpdated(event.data.object);
+        break;
+      case 'payout.created':
+        await handlePayoutCreated(event.data.object);
+        break;
+      case 'payout.updated':
+        await handlePayoutUpdated(event.data.object);
+        break;
+      case 'account.updated':
+        await handleAccountUpdated(event.data.object);
+        break;
+      default:
+        logger.info(`Unhandled event type: ${event.type}`);
+    }
+
+    // Log webhook event to database-style JSON file for audit
+    const webhookLogFile = path.join(logsDir, 'webhook-events.json');
+    const webhookLogEntry = {
+      id: event.id,
+      type: event.type,
+      created: new Date(event.created * 1000).toISOString(),
+      processed_at: new Date().toISOString(),
+      livemode: event.livemode,
+      data: event.data,
+      status: 'processed'
+    };
+
+    // Append to webhook log file
+    let webhookLogs = [];
+    if (fs.existsSync(webhookLogFile)) {
+      try {
+        webhookLogs = JSON.parse(fs.readFileSync(webhookLogFile, 'utf8'));
+      } catch (parseError) {
+        logger.error(`Error parsing webhook log file: ${parseError.message}`);
+        webhookLogs = [];
+      }
+    }
+    
+    webhookLogs.push(webhookLogEntry);
+    
+    // Keep only last 1000 webhook events
+    if (webhookLogs.length > 1000) {
+      webhookLogs = webhookLogs.slice(-1000);
+    }
+    
+    fs.writeFileSync(webhookLogFile, JSON.stringify(webhookLogs, null, 2));
+    
+    logger.info(`Webhook event ${event.type} processed and logged`);
+    res.json({ received: true });
+
+  } catch (error) {
+    logger.error(`Error processing webhook event ${event.type}: ${error.message}`);
+    res.status(500).json({ error: 'Webhook processing failed' });
+  }
+});
+
+/**
+ * Handle successful payment intent
+ */
+async function handlePaymentIntentSucceeded(paymentIntent) {
+  logger.info(`Payment succeeded: ${paymentIntent.id} for $${(paymentIntent.amount / 100).toFixed(2)}`);
+  
+  // Update transaction log with success status
+  const transactionLogFile = path.join(logsDir, 'transactions.json');
+  if (fs.existsSync(transactionLogFile)) {
+    try {
+      const transactions = JSON.parse(fs.readFileSync(transactionLogFile, 'utf8'));
+      const transactionIndex = transactions.findIndex(t => t.stripeTransactionId === paymentIntent.id);
+      
+      if (transactionIndex !== -1) {
+        transactions[transactionIndex].status = 'success';
+        transactions[transactionIndex].updated_at = new Date().toISOString();
+        transactions[transactionIndex].stripe_status = 'succeeded';
+        fs.writeFileSync(transactionLogFile, JSON.stringify(transactions, null, 2));
+        logger.info(`Updated transaction status to success for payment: ${paymentIntent.id}`);
+      }
+    } catch (error) {
+      logger.error(`Error updating transaction log: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Handle failed payment intent
+ */
+async function handlePaymentIntentFailed(paymentIntent) {
+  logger.error(`Payment failed: ${paymentIntent.id} - ${paymentIntent.last_payment_error?.message || 'Unknown error'}`);
+  
+  // Update transaction log with failure status
+  const transactionLogFile = path.join(logsDir, 'transactions.json');
+  if (fs.existsSync(transactionLogFile)) {
+    try {
+      const transactions = JSON.parse(fs.readFileSync(transactionLogFile, 'utf8'));
+      const transactionIndex = transactions.findIndex(t => t.stripeTransactionId === paymentIntent.id);
+      
+      if (transactionIndex !== -1) {
+        transactions[transactionIndex].status = 'failed';
+        transactions[transactionIndex].updated_at = new Date().toISOString();
+        transactions[transactionIndex].stripe_status = 'failed';
+        transactions[transactionIndex].error_message = paymentIntent.last_payment_error?.message || 'Payment failed';
+        fs.writeFileSync(transactionLogFile, JSON.stringify(transactions, null, 2));
+        logger.info(`Updated transaction status to failed for payment: ${paymentIntent.id}`);
+      }
+    } catch (error) {
+      logger.error(`Error updating transaction log: ${error.message}`);
+    }
+  }
+}
+
+/**
+ * Handle transfer created event
+ */
+async function handleTransferCreated(transfer) {
+  logger.info(`Transfer created: ${transfer.id} for $${(transfer.amount / 100).toFixed(2)}`);
+}
+
+/**
+ * Handle transfer updated event
+ */
+async function handleTransferUpdated(transfer) {
+  logger.info(`Transfer updated: ${transfer.id} - Status: ${transfer.status || 'unknown'}`);
+}
+
+/**
+ * Handle payout created event
+ */
+async function handlePayoutCreated(payout) {
+  logger.info(`Payout created: ${payout.id} for $${(payout.amount / 100).toFixed(2)} to ${payout.destination || 'unknown destination'}`);
+}
+
+/**
+ * Handle payout updated event
+ */
+async function handlePayoutUpdated(payout) {
+  logger.info(`Payout updated: ${payout.id} - Status: ${payout.status || 'unknown'}`);
+}
+
+/**
+ * Handle account updated event
+ */
+async function handleAccountUpdated(account) {
+  logger.info(`Connected account updated: ${account.id} - Charges enabled: ${account.charges_enabled}, Payouts enabled: ${account.payouts_enabled}`);
+}
 
 // Start server
 app.listen(PORT, () => {
