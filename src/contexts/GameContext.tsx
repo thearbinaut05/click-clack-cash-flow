@@ -495,41 +495,4 @@ export const useGame = (): GameContextType => {
   }
   return context;
 };
-    }, 3000); // Regenerate 1 energy every 3 seconds
-    
-    return () => clearInterval(energyInterval);
-  }, [energy]);
-  
-  const value = {
-    coins,
-    energy,
-    gems,
-    clickPower,
-    clickMultiplier,
-    level,
-    tapCount,
-    adImpressions,
-    adClicks,
-    adConversions,
-    glitchMode,
-    nftItems,
-    selectedNFT,
-    handleTap,
-    buyUpgrade,
-    activateGlitch,
-    selectNFT,
-    resetProgress,
-    cashOut,
-  };
-  
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
-};
-
-export const useGame = (): GameContextType => {
-  const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGame must be used within a GameProvider');
-  }
-  return context;
-};
 
