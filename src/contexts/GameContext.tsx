@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { toast } from '@/hooks/use-toast';
 import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD, PAYOUT_TYPES } from '@/utils/constants';
 import AdMonetizationService from '@/services/AdMonetizationService';
+import { CashoutService } from '@/services/CashoutService';
 
 interface GameContextType {
   coins: number;
@@ -206,8 +207,8 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setAdaptiveMultiplier(prev => Math.min(3, prev + 0.1));
     }
     
-    // NFT rebalancing: maximize profits after each click
-    setNFTPositions(prevNFTs => maximizeNFTProfits(prevNFTs, Math.pow(BASE_EXPONENTIAL_GAIN, tapCount)));
+    // NFT rebalancing: maximize profits after each click (commented out for now to fix error)
+    // setNFTPositions(prevNFTs => maximizeNFTProfits(prevNFTs, Math.pow(BASE_EXPONENTIAL_GAIN, tapCount)));
   };
   
   // Activate glitch mode
@@ -359,23 +360,18 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
   };
   
-  // Cash out functionality with Stripe - now using autonomous revenue
+  // Cash out functionality with Stripe - using clicker game coins only
   const cashOut = async (email: string, method: string = DEFAULT_CASHOUT_METHOD): Promise<string> => {
-    // Validate minimum cash out amount
+    // Validate minimum cash out amount - only check clicker game coins
     if (coins < 500) {
-      throw new Error("You need at least 500 coins ($5) to cash out from autonomous revenue");
-    }
-    
-    // Check if there's enough application balance
-    if (applicationBalance < (coins / 100)) {
-      throw new Error(`Insufficient autonomous revenue balance. Please wait for more revenue to be generated.`);
+      throw new Error("You need at least 500 coins ($5) from the clicker game to cash out");
     }
     
     // Calculate cash value
     const cashValue = (coins / 100).toFixed(2);
     
     try {
-      console.log(`Processing cashout of $${cashValue} to ${email} using method ${method}`);
+      console.log(`Processing clicker game cashout of $${cashValue} to ${email} using method ${method}`);
       
       // Map frontend method to backend payout type
       let payoutType;
@@ -390,47 +386,32 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           payoutType = PAYOUT_TYPES.EMAIL;
       }
       
-      // Process the payment through the autonomous revenue system
-      const response = await fetch('https://tqbybefpnwxukzqkanip.supabase.co/functions/v1/cashout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRxYnliZWZwbnd4dWt6cWthbmlwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNjAyMDMsImV4cCI6MjA2MzkzNjIwM30.trGBxEF0wr4S_4gBteqV_TuWcIEMbzfDJiA1lga6Yko'
-        },
-        body: JSON.stringify({
-          userId: `user_${Date.now()}`,
-          coins: coins,
-          payoutType: payoutType,
-          email: email || DEFAULT_TEST_EMAIL,
-          metadata: {
-            gameSession: Date.now(),
-            level,
-            adImpressions,
-            adClicks,
-            adConversions,
-            autonomous_revenue_source: true,
-            application_balance_before: applicationBalance
-          }
-        })
+      // Use CashoutService to process payment with clicker game coins
+      const cashoutService = CashoutService.getInstance();
+      const result = await cashoutService.processCashout({
+        userId: `user_${Date.now()}`,
+        coins: coins,
+        payoutType: payoutType,
+        email: email || DEFAULT_TEST_EMAIL,
+        metadata: {
+          gameSession: Date.now(),
+          level,
+          adImpressions,
+          adClicks,
+          adConversions,
+          clicker_game_source: true,
+          coinCount: coins
+        }
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Payment processing failed (Status: ${response.status})`);
+      if (!result.success) {
+        throw new Error(result.error || 'Payment processing failed');
       }
       
-      const result = await response.json();
-      console.log("Autonomous revenue cashout result:", result);
+      console.log("Clicker game cashout result:", result);
       
-      // Update local state to reflect the new autonomous revenue balance
-      if (result.autonomous_revenue_balance !== undefined) {
-        setApplicationBalance(result.autonomous_revenue_balance);
-        // Update coins to match new autonomous revenue balance
-        setCoins(Math.floor(result.autonomous_revenue_balance * 100));
-      } else {
-        // If balance not returned, reset coins to 0 as they were cashed out
-        setCoins(0);
-      }
+      // Reset clicker game coins to 0 as they were successfully cashed out
+      setCoins(0);
       
       // Record a "conversion" for CPA tracking with real monetization
       setAdConversions(prev => prev + 1);
@@ -443,7 +424,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
                            `tx_${Date.now()}`;
       
       // Log the transaction for auditing
-      console.log(`Autonomous revenue cashout completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}, Balance After=$${result.autonomous_revenue_balance || 0}`);
+      console.log(`Clicker game cashout completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}`);
       
       return transactionId;
     } catch (error) {
@@ -459,31 +440,33 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setEnergy(prev => Math.min(100, prev + 1));
       }
     }, 3000); // Regenerate 1 energy every 3 seconds
-      return () => clearInterval(energyInterval);
-    }, [energy]);
+    
+    return () => clearInterval(energyInterval);
+  }, [energy]);
 
-    const value = {
-      coins,
-      energy,
-      gems,
-      clickPower,
-      clickMultiplier,
-      level,
-      tapCount,
-      adImpressions,
-      adClicks,
-      adConversions,
-      glitchMode,
-      nftItems,
-      selectedNFT,
-      handleTap,
-      buyUpgrade,
-      activateGlitch,
-      selectNFT,
-      resetProgress,
-      cashOut,
-    };
-    return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+  const value = {
+    coins,
+    energy,
+    gems,
+    clickPower,
+    clickMultiplier,
+    level,
+    tapCount,
+    adImpressions,
+    adClicks,
+    adConversions,
+    glitchMode,
+    nftItems,
+    selectedNFT,
+    handleTap,
+    buyUpgrade,
+    activateGlitch,
+    selectNFT,
+    resetProgress,
+    cashOut,
+  };
+  
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 };
 
 export const useGame = (): GameContextType => {

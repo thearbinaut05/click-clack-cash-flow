@@ -5,11 +5,11 @@ import { BadgeDollarSign } from 'lucide-react';
 import CashOutDialog from './CashOutDialog';
 import { useGame } from '@/contexts/GameContext';
 import TestCashOutButton from './TestCashOutButton';
-import AutonomousRevenueDisplay from './AutonomousRevenueDisplay';
 
 const CashOutButton: React.FC = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { coins } = useGame();
+
   return (
     <>
       <div className="w-full flex flex-col gap-4">
@@ -22,11 +22,13 @@ const CashOutButton: React.FC = () => {
           <BadgeDollarSign className="h-5 w-5" />
           <span>Cash Out Real Money (${(coins / 100).toFixed(2)})</span>
         </Button>
+        
         {coins < 500 && (
           <p className="text-sm text-muted-foreground text-center">
             Need 500+ coins ($5) from the clicker game to cash out
           </p>
         )}
+        
         <div className="flex justify-end">
           <TestCashOutButton />
         </div>
@@ -34,6 +36,6 @@ const CashOutButton: React.FC = () => {
       <CashOutDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
   );
-}
+};
 
 export default CashOutButton;
