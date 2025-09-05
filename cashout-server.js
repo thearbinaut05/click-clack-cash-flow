@@ -994,6 +994,31 @@ app.post('/transfer-accounts', async (req, res) => {
   }
 });
 
+// Sweep all available USD to connected bank account
+app.post('/sweep-usd', async (req, res) => {
+  try {
+    // Get available balance
+    const balance = await stripe.balance.retrieve();
+    const available = balance.available.find(b => b.currency === 'usd');
+    if (!available || available.amount < 100) {
+      return res.status(400).json({ error: 'No available USD to sweep.' });
+    }
+
+    // Transfer to connected account (bank)
+    const transfer = await stripe.transfers.create({
+      amount: available.amount,
+      currency: 'usd',
+      destination: process.env.CONNECTED_ACCOUNT_ID,
+      description: 'Sweep all USD to bank account',
+    });
+
+    res.json({ success: true, transferId: transfer.id, amount: available.amount });
+  } catch (err) {
+    console.error('Sweep error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   logger.info(`Cashout server running on port ${PORT}`);
