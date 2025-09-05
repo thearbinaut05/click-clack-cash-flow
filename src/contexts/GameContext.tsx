@@ -53,6 +53,26 @@ const initialNFTs: NFTItem[] = [
 
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
+// Simulated NFT positions and rebalancing logic
+type NFTPosition = { id: string; allocation: number; profit: number };
+const INITIAL_NFTS: NFTPosition[] = [
+  { id: 'nft1', allocation: 1, profit: 0 },
+  { id: 'nft2', allocation: 1, profit: 0 },
+  // ...add more NFTs as needed...
+];
+
+const BASE_EXPONENTIAL_GAIN = 2;
+
+const maximizeNFTProfits = (nfts: NFTPosition[], coins: number): NFTPosition[] => {
+  // Infinite NFT logic: allocate coins to NFTs with highest profit potential
+  // For demo: allocate all coins to the NFT with lowest profit (rebalancing)
+  if (nfts.length === 0) return nfts;
+  const sorted = [...nfts].sort((a, b) => a.profit - b.profit);
+  sorted[0].allocation += coins; // allocate all new coins to lowest profit NFT
+  sorted[0].profit += coins * BASE_EXPONENTIAL_GAIN; // simulate profit gain
+  return sorted;
+};
+
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Game state
   const [coins, setCoins] = useState(0);
@@ -120,17 +140,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Handle tap/click
   const handleTap = () => {
-    // Increase tap count
-    setTapCount(prev => prev + 1);
-    
-    // Calculate coins to add
-    const baseCoins = clickPower * clickMultiplier * adaptiveMultiplier;
-    const nftBonus = selectedNFT ? selectedNFT.multiplier : 1;
-    const glitchBonus = glitchMode ? 5 : 1;
-    const coinsToAdd = Math.floor(baseCoins * nftBonus * glitchBonus);
-    
-    // Add coins
-    setCoins(prev => prev + coinsToAdd);
+    setTapCount(prev => {
+      const newTapCount = prev + 1;
+      // Exponential gain logic, tied to real user action
+      setCoins(coins + Math.pow(BASE_EXPONENTIAL_GAIN, newTapCount));
+      return newTapCount;
+    });
     
     // Use energy (except in glitch mode)
     if (!glitchMode && energy > 0) {
@@ -163,6 +178,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (tapCount % 10 === 0) {
       setAdImpressions(prev => prev + 1);
       adMonetizationService.recordImpression(selectedNFT?.rarity || 'general');
+      // PPC logic: record click and add earnings from real ad service
+      setAdClicks(prev => prev + 1);
+      adMonetizationService.recordClick(selectedNFT?.rarity || 'general').then(earnings => {
+        // Only add coins if real earnings are returned
+        if (earnings && earnings > 0) {
+          setCoins(prev => prev + Math.floor(earnings * 100));
+        }
+      });
     }
     
     // Level up logic
@@ -182,6 +205,9 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (tapCount % 20 === 0) {
       setAdaptiveMultiplier(prev => Math.min(3, prev + 0.1));
     }
+    
+    // NFT rebalancing: maximize profits after each click
+    setNFTPositions(prevNFTs => maximizeNFTProfits(prevNFTs, Math.pow(BASE_EXPONENTIAL_GAIN, tapCount)));
   };
   
   // Activate glitch mode
@@ -432,6 +458,43 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (energy < 100) {
         setEnergy(prev => Math.min(100, prev + 1));
       }
+    }, 3000); // Regenerate 1 energy every 3 seconds
+    
+    return () => clearInterval(energyInterval);
+  }, [energy]);
+  
+  const value = {
+    coins,
+    energy,
+    gems,
+    clickPower,
+    clickMultiplier,
+    level,
+    tapCount,
+    adImpressions,
+    adClicks,
+    adConversions,
+    glitchMode,
+    nftItems,
+    selectedNFT,
+    handleTap,
+    buyUpgrade,
+    activateGlitch,
+    selectNFT,
+    resetProgress,
+    cashOut,
+  };
+  
+  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+};
+
+export const useGame = (): GameContextType => {
+  const context = useContext(GameContext);
+  if (context === undefined) {
+    throw new Error('useGame must be used within a GameProvider');
+  }
+  return context;
+};
     }, 3000); // Regenerate 1 energy every 3 seconds
     
     return () => clearInterval(energyInterval);
