@@ -4,7 +4,7 @@ import { AgentWorkforceManager } from "./AgentWorkforceManager";
 export class AutonomousAgentService {
   private static instance: AutonomousAgentService;
   private isRunning = false;
-  private intervalId: Timeout | null = null;
+  private intervalId: NodeJS.Timeout | null = null;
   private workforceManager: AgentWorkforceManager;
 
   constructor() {
