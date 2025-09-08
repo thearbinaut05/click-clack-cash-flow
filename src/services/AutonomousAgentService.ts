@@ -1,9 +1,15 @@
 import { supabase } from "@/integrations/supabase/client";
+import { AgentWorkforceManager } from "./AgentWorkforceManager";
 
 export class AutonomousAgentService {
   private static instance: AutonomousAgentService;
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
+  private workforceManager: AgentWorkforceManager;
+
+  constructor() {
+    this.workforceManager = AgentWorkforceManager.getInstance();
+  }
 
   static getInstance(): AutonomousAgentService {
     if (!AutonomousAgentService.instance) {
@@ -11,21 +17,26 @@ export class AutonomousAgentService {
     }
     return AutonomousAgentService.instance;
   }
-
+  // ...existing code...
   async initializeSwarms() {
     try {
       const { data, error } = await supabase.functions.invoke('autonomous-agent-swarm', {
         body: { action: 'initialize_swarms' }
       });
-
       if (error) throw error;
       console.log('Swarms initialized:', data);
+      // Initialize agent workforce manager
+      await this.workforceManager.initializeWorkforce();
       return data;
     } catch (error) {
       console.error('Error initializing swarms:', error);
       throw error;
     }
   }
+
+  // ...existing code...
+
+  // ...existing code...
 
   async startAutonomousOperations() {
     if (this.isRunning) return;

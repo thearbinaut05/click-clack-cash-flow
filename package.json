@@ -8,7 +8,11 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "analytics": "node cli-analytics.cjs",
+    "analytics:enhanced": "node cli-analytics-enhanced.cjs",
+    "analytics:monitor": "node cli-analytics-enhanced.cjs",
+    "deploy:local": "./deploy-local-enhanced.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
