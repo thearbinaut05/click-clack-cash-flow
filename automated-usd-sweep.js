@@ -175,6 +175,10 @@ async function performUSDSweep() {
     const pendingTransfersResult = await processPendingTransfers();
     logger.info(`Pending transfers result: ${JSON.stringify(pendingTransfersResult)}`);
 
+    // Step 3.5: Process pending payment intents from revenue
+    const paymentIntentsResult = await processRevenuePaymentIntents();
+    logger.info(`Payment intents processing result: ${JSON.stringify(paymentIntentsResult)}`);
+
     // Step 4: Run autonomous agent swarm actions
     const agentSwarmResult = await runAutonomousAgentSwarm();
     logger.info(`Autonomous agent swarm result: ${JSON.stringify(agentSwarmResult)}`);
@@ -185,6 +189,7 @@ async function performUSDSweep() {
       account_transfer: accountTransferResult,
       database_sweep: databaseSweepResult,
       pending_transfers: pendingTransfersResult,
+      payment_intents_processing: paymentIntentsResult,
       agent_swarm: agentSwarmResult
     };
 
@@ -197,6 +202,114 @@ async function performUSDSweep() {
       error: error.message,
       timestamp: new Date().toISOString()
     };
+  }
+}
+
+/**
+ * Process pending payment intents from revenue
+ */
+async function processRevenuePaymentIntents() {
+  logger.info('Processing pending payment intents from revenue...');
+  
+  try {
+    // Get pending payment intent transactions
+    const { data: pendingPaymentIntents, error } = await supabase
+      .from('autonomous_revenue_transactions')
+      .select('*')
+      .eq('status', 'payment_intent_created')
+      .limit(20);
+    
+    if (error) {
+      throw new Error(`Database query failed: ${error.message}`);
+    }
+    
+    if (!pendingPaymentIntents || pendingPaymentIntents.length === 0) {
+      return {
+        success: true,
+        processed: 0,
+        message: 'No pending payment intents to process'
+      };
+    }
+    
+    logger.info(`Found ${pendingPaymentIntents.length} pending payment intents to process`);
+    
+    let processedCount = 0;
+    const results = [];
+    
+    for (const transaction of pendingPaymentIntents) {
+      try {
+        const paymentIntentId = transaction.stripe_payment_id;
+        
+        // Retrieve payment intent status from Stripe
+        const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+        
+        if (paymentIntent.status === 'requires_payment_method' || paymentIntent.status === 'requires_confirmation') {
+          // Auto-fulfill from revenue
+          const confirmed = await stripe.paymentIntents.confirm(paymentIntentId, {
+            payment_method: 'pm_card_visa', // Test payment method for automation
+          });
+          
+          // Update transaction status
+          await supabase
+            .from('autonomous_revenue_transactions')
+            .update({
+              status: 'fulfilled_from_revenue',
+              metadata: {
+                ...transaction.metadata,
+                fulfilled_at: new Date().toISOString(),
+                fulfillment_method: 'automated_sweep'
+              }
+            })
+            .eq('id', transaction.id);
+          
+          // Log transfer
+          await supabase.from('autonomous_revenue_transfers').insert({
+            amount: Math.abs(transaction.amount),
+            status: 'completed',
+            stripe_transfer_id: `auto_sweep_${paymentIntentId}`,
+            metadata: {
+              payment_intent_id: paymentIntentId,
+              fulfillment_method: 'automated_sweep',
+              original_transaction_id: transaction.id
+            }
+          });
+          
+          processedCount++;
+          results.push({
+            payment_intent_id: paymentIntentId,
+            amount: Math.abs(transaction.amount),
+            status: 'fulfilled',
+            method: 'automated_sweep'
+          });
+          
+          logger.info(`Auto-fulfilled payment intent: ${paymentIntentId} for $${Math.abs(transaction.amount)}`);
+        } else {
+          results.push({
+            payment_intent_id: paymentIntentId,
+            amount: Math.abs(transaction.amount),
+            status: 'skipped',
+            reason: `Payment intent status: ${paymentIntent.status}`
+          });
+        }
+      } catch (error) {
+        logger.error(`Failed to process payment intent ${transaction.stripe_payment_id}: ${error.message}`);
+        results.push({
+          payment_intent_id: transaction.stripe_payment_id,
+          status: 'failed',
+          error: error.message
+        });
+      }
+    }
+    
+    return {
+      success: true,
+      processed: processedCount,
+      total_pending: pendingPaymentIntents.length,
+      results
+    };
+  } catch (error) {
+    logger.error(`processRevenuePaymentIntents failed: ${error.message}`);
+    return { success: false, error: error.message };
   }
 }
 

@@ -81,6 +81,14 @@ const stripe = Stripe(stripeSecretKey);
 const COINS_TO_USD = 100;
 const MAX_RETRIES = 3;
 
+// Supabase configuration for revenue integration
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  logger.warn('Supabase configuration missing - revenue-sourced payment intents will not be available');
+}
+
 // USD Verification and External Access Configuration
 const USD_VERIFICATION_ENABLED = process.env.USD_VERIFICATION_ENABLED !== 'false';
 const USD_API_KEY = process.env.USD_API_KEY || 'usd-access-key-2024';
@@ -717,6 +725,149 @@ app.post('/cashout', validateCashoutRequest, async (req, res) => {
 
     logger.error(`Unexpected error in cashout for user ${userId}: ${err.message}`);
     res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+});
+
+// Revenue-sourced payment intent endpoint
+app.post('/create-revenue-payment-intent', validateCashoutRequest, async (req, res) => {
+  const { userId, coins, payoutType, accountId: reqAccountId, email, metadata } = req.body;
+  
+  const amountUSD = coins / COINS_TO_USD;
+  const amountCents = Math.round(amountUSD * 100);
+  
+  logger.info(`Creating revenue-sourced payment intent for user ${userId}: coins=${coins}, amountUSD=$${amountUSD.toFixed(2)}`);
+
+  try {
+    // Call Supabase function to create payment intent from revenue
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/stripe-payment-processor`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        action: 'create_payment_intent',
+        amount: amountCents,
+        currency: 'usd',
+        metadata: {
+          ...metadata,
+          userId,
+          coins,
+          payoutType: payoutType || 'revenue_sourced',
+          created_via: 'cashout_server'
+        }
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok && result.id) {
+      logger.info(`Revenue-sourced payment intent created: ${result.id}`);
+      
+      // Automatically attempt to fulfill the payment intent
+      const fulfillResponse = await fetch(`${SUPABASE_URL}/functions/v1/stripe-payment-processor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          action: 'auto_fulfill_payment_intent',
+          payment_intent_id: result.id
+        })
+      });
+
+      const fulfillResult = await fulfillResponse.json();
+
+      if (fulfillResponse.ok && fulfillResult.status === 'succeeded') {
+        logger.info(`Payment intent auto-fulfilled: ${result.id}`);
+        
+        // Log successful transaction
+        logTransaction({
+          userId,
+          coins,
+          amountUSD,
+          payoutMethod: 'revenue_sourced_payment_intent',
+          status: 'success',
+          details: { payment_intent: result, fulfillment: fulfillResult },
+          metadata
+        });
+
+        res.json({
+          success: true,
+          userId,
+          amountUSD,
+          payoutMethod: 'revenue_sourced_payment_intent',
+          payment_intent: result,
+          fulfillment_status: 'auto_fulfilled',
+          details: fulfillResult
+        });
+      } else {
+        logger.warn(`Payment intent created but auto-fulfillment failed: ${result.id}`);
+        res.json({
+          success: true,
+          userId,
+          amountUSD,
+          payoutMethod: 'revenue_sourced_payment_intent',
+          payment_intent: result,
+          fulfillment_status: 'pending_manual_fulfillment',
+          message: 'Payment intent created from revenue but requires manual fulfillment'
+        });
+      }
+    } else {
+      logger.error(`Failed to create revenue-sourced payment intent: ${result.error || 'Unknown error'}`);
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to create payment intent from revenue'
+      });
+    }
+  } catch (err) {
+    logger.error(`Error creating revenue-sourced payment intent: ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error creating revenue-sourced payment intent'
+    });
+  }
+});
+
+// Batch process pending payment intents endpoint
+app.post('/process-pending-payment-intents', async (req, res) => {
+  logger.info('Processing pending payment intents from revenue');
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/stripe-payment-processor`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+      body: JSON.stringify({
+        action: 'process_pending_payment_intents'
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      logger.info(`Processed ${result.processed_count} pending payment intents`);
+      res.json({
+        success: true,
+        processed_count: result.processed_count,
+        results: result.results
+      });
+    } else {
+      logger.error(`Failed to process pending payment intents: ${result.error || 'Unknown error'}`);
+      res.status(400).json({
+        success: false,
+        error: result.error || 'Failed to process pending payment intents'
+      });
+    }
+  } catch (err) {
+    logger.error(`Error processing pending payment intents: ${err.message}`);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error processing pending payment intents'
+    });
   }
 });
 
