@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { GameProvider } from '@/contexts/GameContext';
 import GameHeader from '@/components/game/GameHeader';
 import TapArea from '@/components/game/TapArea';
@@ -9,9 +9,30 @@ import StatsSection from '@/components/game/StatsSection';
 import AutonomousAgentDashboard from '@/components/game/AutonomousAgentDashboard';
 import AutonomousRevenueDisplay from '@/components/game/AutonomousRevenueDisplay';
 import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
+import AutopilotCashoutPanel from "@/components/game/AutopilotCashoutPanel";
+import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
+import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
 
 const Index = () => {
+  const realtimeConnection = useRealtimeConnection();
+
+  useEffect(() => {
+    // Subscribe to real-time updates for all critical tables
+    const balanceChannel = realtimeConnection.subscribe('balance-updates', {
+      config: {
+        postgres_changes: [
+          { event: '*', schema: 'public', table: 'application_balance' },
+          { event: '*', schema: 'public', table: 'autonomous_revenue_transactions' },
+          { event: '*', schema: 'public', table: 'autonomous_revenue_transfers' }
+        ]
+      }
+    });
+
+    return () => {
+      realtimeConnection.unsubscribe('balance-updates');
+    };
+  }, [realtimeConnection]);
   return (
     <GameProvider>
       <div className="min-h-screen bg-gradient-to-b from-game-deep-blue to-[#09152d] overflow-hidden">
@@ -81,8 +102,14 @@ const Index = () => {
               <AutonomousAgentDashboard />
             </div>
             
+            {/* Server Connection Status */}
+            <ServerConnectionStatus />
+            
             {/* External Accounts Panel */}
             <ExternalAccountsPanel />
+            
+            {/* Autopilot Cashout Panel */}
+            <AutopilotCashoutPanel />
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="space-y-6">

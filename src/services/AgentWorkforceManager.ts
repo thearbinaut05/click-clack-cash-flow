@@ -193,8 +193,10 @@ export class AgentWorkforceManager {
       case 'revenue':
         agent = new RevenueAgent({
           id: agentId,
+          type: 'revenue',
           name: `Revenue Agent ${this.agents.size + 1}`,
           priority: 5,
+          capabilities: ['revenue-generation', 'optimization'],
           maxConcurrentTasks: 3,
           performanceThreshold: this.config.performanceThreshold,
           riskTolerance: 0.3
@@ -204,8 +206,10 @@ export class AgentWorkforceManager {
       case 'market':
         agent = new MarketAgent({
           id: agentId,
+          type: 'market',
           name: `Market Agent ${this.agents.size + 1}`,
           priority: 4,
+          capabilities: ['market-analysis', 'trend-detection'],
           maxConcurrentTasks: 2,
           performanceThreshold: this.config.performanceThreshold,
           riskTolerance: 0.2
@@ -261,14 +265,14 @@ export class AgentWorkforceManager {
     try {
       // Load agents from database if they exist
       const { data: agentData } = await supabase
-        .from('agent_workforce')
+        .from('agent_swarms')
         .select('*')
         .eq('status', 'active');
 
-      if (agentData) {
+      if (agentData && agentData.length > 0) {
         for (const agentRecord of agentData) {
           // Recreate agent from stored configuration
-          const agent = await this.spawnAgent(agentRecord.type);
+          const agent = await this.spawnAgent(agentRecord.swarm_type || 'revenue');
           // Restore agent state if needed
         }
       }
@@ -477,21 +481,20 @@ export class AgentWorkforceManager {
 
   async saveWorkforceState(): Promise<void> {
     try {
-      // Save workforce configuration and agent states
-      const workforceState = {
-        config: this.config,
-        agents: Array.from(this.agents.entries()).map(([id, agent]) => ({
-          id,
-          config: agent.getConfig(),
-          performance: agent.getPerformance()
-        })),
-        metrics: this.metrics,
-        timestamp: new Date()
-      };
+      // Save workforce configuration and agent states to existing table
+      const agentStates = Array.from(this.agents.entries()).map(([id, agent]) => ({
+        name: agent.getConfig().name,
+        swarm_type: agent.getConfig().type,
+        status: 'active',
+        config: JSON.parse(JSON.stringify(agent.getConfig())),
+        performance_metrics: JSON.parse(JSON.stringify(agent.getPerformance()))
+      }));
 
-      await supabase
-        .from('workforce_states')
-        .insert(workforceState);
+      for (const agentState of agentStates) {
+        await supabase
+          .from('agent_swarms')
+          .upsert(agentState);
+      }
 
       console.log('Workforce state saved');
     } catch (error) {
@@ -501,29 +504,46 @@ export class AgentWorkforceManager {
 
   async loadWorkforceState(): Promise<void> {
     try {
-      const { data } = await supabase
-        .from('workforce_states')
+      const { data: agentStates } = await supabase
+        .from('agent_swarms')
         .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
 
-      if (data) {
-        // Restore workforce state
-        this.config = data.config;
-        this.metrics = data.metrics;
-
-        // Recreate agents
-        for (const agentData of data.agents) {
-          const agent = await this.spawnAgent(agentData.config.type);
-          // Restore performance data
-          Object.assign(agent, { performance: agentData.performance });
+      if (agentStates && agentStates.length > 0) {
+        // Recreate agents from saved state
+        for (const agentData of agentStates) {
+          const agent = await this.spawnAgent(agentData.swarm_type || 'revenue');
+          // Update agent configuration if available
+          if (agentData.config) {
+            try {
+              agent.updateConfig(agentData.config as any);
+            } catch (error) {
+              console.warn('Failed to update agent config:', error);
+            }
+          }
         }
 
         console.log('Workforce state loaded');
       }
     } catch (error) {
-      console.log('No saved workforce state found');
+      console.log('No previous workforce state found, starting fresh');
     }
+  }
+
+  // Real-time server connection methods
+  async connectToServer(): Promise<void> {
+    console.log('Connecting workforce to server...');
+    await this.saveWorkforceState();
+  }
+
+  async syncWithServer(): Promise<void> {
+    console.log('Syncing workforce with server...');
+    await this.loadWorkforceState();
+    await this.saveWorkforceState();
+  }
+
+  isServerConnected(): boolean {
+    return this.isRunning;
   }
 }
