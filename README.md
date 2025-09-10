@@ -46,12 +46,14 @@ The cash out system allows users to convert their in-game coins to real money us
 
 3. Create a `.env` file in the root directory with the following variables:
    ```
-   # Stripe API Keys
-   STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
-   STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key
+   # Stripe API Keys - FOR REAL USD CASHOUTS USE LIVE KEYS
+   # Get your live keys from https://dashboard.stripe.com/apikeys
+   STRIPE_SECRET_KEY=sk_live_your_actual_stripe_secret_key
+   STRIPE_PUBLISHABLE_KEY=pk_live_your_actual_stripe_publishable_key
 
    # Connected Account ID for Stripe Connect
-   CONNECTED_ACCOUNT_ID=acct_your_connected_account_id
+   # Get this from your Stripe Connect dashboard
+   CONNECTED_ACCOUNT_ID=acct_your_actual_connected_account_id
 
    # Server Configuration
    PORT=4000
@@ -149,8 +151,9 @@ VITE_APP_STRIPE_ACCOUNT_ID=acct_your_connected_account_id
 Deploy the cashout server to a Node.js hosting service (Heroku, DigitalOcean, etc.) and set the environment variables:
 
 ```
-STRIPE_SECRET_KEY=sk_your_stripe_secret_key
-CONNECTED_ACCOUNT_ID=acct_your_connected_account_id
+# IMPORTANT: Use LIVE Stripe keys for real USD cashouts
+STRIPE_SECRET_KEY=sk_live_your_actual_stripe_secret_key
+CONNECTED_ACCOUNT_ID=acct_your_actual_connected_account_id
 PORT=4000
 LOG_LEVEL=info
 ALLOWED_ORIGINS=https://your-frontend-domain.com

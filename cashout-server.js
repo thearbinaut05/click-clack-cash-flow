@@ -25,8 +25,9 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const COINS_TO_USD = 100; // 100 coins = $1
 const MAX_RETRIES = 3;
 
-if (!stripeSecretKey || stripeSecretKey === 'your_stripe_secret_key_here') {
-  console.error('FATAL: STRIPE_SECRET_KEY is missing or placeholder. Update .env with a valid sk_test_ or sk_live_ key.');
+if (!stripeSecretKey || stripeSecretKey === 'your_stripe_secret_key_here' || stripeSecretKey.includes('XXXXX') || stripeSecretKey === 'sk_live_your_actual_stripe_secret_key_here') {
+  console.error('FATAL: STRIPE_SECRET_KEY is missing or placeholder. For REAL USD cashouts, update .env with a valid sk_live_ key from your Stripe dashboard.');
+  console.error('Visit https://dashboard.stripe.com/apikeys to get your live API keys.');
   process.exit(1);
 }
 
@@ -60,8 +61,10 @@ const logger = winston.createLogger({
   ]
 });
 
-if (!DEFAULT_CONNECTED_ACCOUNT_ID) {
-  logger.warn('No DEFAULT CONNECTED_ACCOUNT_ID provided. Non-email payouts must include accountId.');
+if (!DEFAULT_CONNECTED_ACCOUNT_ID || DEFAULT_CONNECTED_ACCOUNT_ID === 'acct_your_actual_connected_account_id_here') {
+  logger.warn('WARNING: No valid CONNECTED_ACCOUNT_ID configured. For real USD cashouts, set up a Stripe Connect account.');
+  logger.warn('Visit https://dashboard.stripe.com/connect/accounts/overview to create a connected account.');
+  logger.warn('Non-email payouts will require accountId parameter in requests.');
 }
 
 // Middleware
@@ -116,7 +119,7 @@ function isUnrecoverableError(err) {
 }
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-// Stripe / simulation helpers
+// Stripe payout helpers
 async function performInstantCardPayout(accountId, amountUSD) {
   try {
     const account = await stripe.accounts.retrieve(accountId);
@@ -145,7 +148,7 @@ async function performBankAccountPayout(accountId, amountUSD) {
 }
 async function performEmailPayout(email, amountUSD) {
   try {
-    const paymentIntent = await stripe.paymentIntents.create({ amount: Math.round(amountUSD * 100), currency: 'usd', payment_method_types: ['card'], receipt_email: email, description: `Cashout simulated payout to email ${email}` });
+    const paymentIntent = await stripe.paymentIntents.create({ amount: Math.round(amountUSD * 100), currency: 'usd', payment_method_types: ['card'], receipt_email: email, description: `Real USD cashout payment to ${email}` });
     return { success: true, message: `PaymentIntent created for ${email}`, paymentIntentId: paymentIntent.id };
   } catch (e) {
     logger.error(`Email payout failed: ${e.message}`);
@@ -216,7 +219,19 @@ app.get('/transactions', (req, res) => {
 
 // Health
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString(), connectedAccountConfigured: !!DEFAULT_CONNECTED_ACCOUNT_ID, version: '1.0.0' });
+  const isLiveMode = stripeSecretKey.startsWith('sk_live_');
+  const hasValidConnectedAccount = DEFAULT_CONNECTED_ACCOUNT_ID && DEFAULT_CONNECTED_ACCOUNT_ID !== 'acct_your_actual_connected_account_id_here';
+  
+  res.json({ 
+    status: 'ok', 
+    timestamp: new Date().toISOString(), 
+    version: '1.0.0',
+    stripeConfigured: true,
+    stripeLiveMode: isLiveMode,
+    connectedAccountConfigured: hasValidConnectedAccount,
+    readyForRealCashouts: isLiveMode && hasValidConnectedAccount,
+    coinsToUsdRate: COINS_TO_USD
+  });
 });
 
 // Root

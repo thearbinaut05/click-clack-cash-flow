@@ -1,14 +1,14 @@
 // Stripe constants
 // Production environment values loaded from environment variables
 // IMPORTANT: These values should only be used client-side for display
-export const OWNER_STRIPE_ACCOUNT_ID = import.meta.env.VITE_APP_STRIPE_ACCOUNT_ID || 'acct_1RPfy4BRrjIUJ5cS';
+export const OWNER_STRIPE_ACCOUNT_ID = import.meta.env.VITE_APP_STRIPE_ACCOUNT_ID || 'acct_your_actual_connected_account_id_here';
 
 // API URL - configurable for different environments
 // In development, this should point to the local cashout server (http://localhost:4000)
 // In production, this should point to your deployed API endpoint
 export const API_BASE_URL = import.meta.env.VITE_APP_API_URL || 'http://localhost:4000';
 
-// Default test values for automated cashout
+// Default values for automated cashout
 export const DEFAULT_TEST_EMAIL = 'thearbinaut05@gmail.com';
 export const DEFAULT_CASHOUT_AMOUNT = 100; // 100 coins = $1
 export const DEFAULT_CASHOUT_METHOD = 'standard';
