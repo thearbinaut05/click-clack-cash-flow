@@ -19,7 +19,7 @@ const TestCashOutButton: React.FC = () => {
       // Calculate the cash value (100 coins = $1)
       const cashValue = Math.max(1, coins / 100).toFixed(2);
       
-      console.log("Testing automated cashout system:", { 
+      console.log("Testing real USD cashout system:", { 
         coins: coins,
         email: DEFAULT_TEST_EMAIL,
         method: DEFAULT_CASHOUT_METHOD 
@@ -53,7 +53,7 @@ const TestCashOutButton: React.FC = () => {
         
         toast({
           title: "✅ System Test Successful",
-          description: `Cashout system is working properly! Transaction ID: ${result.details?.payoutId || result.details?.transferId || 'n/a'}`,
+          description: `Real cashout system is working! Transaction ID: ${result.details?.payoutId || result.details?.transferId || 'n/a'}`,
         });
       } else {
         throw new Error(result.error || 'Cashout test failed');
