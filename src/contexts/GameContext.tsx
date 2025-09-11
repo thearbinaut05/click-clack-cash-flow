@@ -3,6 +3,7 @@ import { toast } from '@/hooks/use-toast';
 import { API_BASE_URL, DEFAULT_TEST_EMAIL, DEFAULT_CASHOUT_METHOD, PAYOUT_TYPES } from '@/utils/constants';
 import AdMonetizationService from '@/services/AdMonetizationService';
 import { CashoutService } from '@/services/CashoutService';
+import { MasterOrchestrationSystem, SystemConfig, SystemMetrics, RealTimeUpdate } from '@/services/MasterOrchestrationSystem';
 
 interface GameContextType {
   coins: number;
@@ -24,6 +25,14 @@ interface GameContextType {
   selectNFT: (nft: NFTItem) => void;
   resetProgress: () => void;
   cashOut: (email: string, method?: string) => Promise<string>;
+  // New master orchestration system integration
+  orchestrationSystem: MasterOrchestrationSystem | null;
+  systemMetrics: SystemMetrics | null;
+  isSystemRunning: boolean;
+  recentUpdates: RealTimeUpdate[];
+  startMasterSystem: () => Promise<void>;
+  stopMasterSystem: () => Promise<void>;
+  manualGlitchTrigger: (nftId: string) => Promise<boolean>;
 }
 
 interface NFTItem {
@@ -98,6 +107,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   // Track application balance from autonomous revenue
   const [applicationBalance, setApplicationBalance] = useState(0);
+  
+  // Master orchestration system state
+  const [orchestrationSystem, setOrchestrationSystem] = useState<MasterOrchestrationSystem | null>(null);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
+  const [isSystemRunning, setIsSystemRunning] = useState(false);
+  const [recentUpdates, setRecentUpdates] = useState<RealTimeUpdate[]>([]);
   
   // Initialize ad monetization service
   const [adMonetizationService] = useState(() => AdMonetizationService.getInstance());
@@ -433,6 +448,169 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
   
+  // Initialize master orchestration system
+  useEffect(() => {
+    const initializeOrchestrationSystem = async () => {
+      try {
+        // Define system configuration
+        const systemConfig: SystemConfig = {
+          rebalancing: {
+            maxLeverage: 4.0,
+            targetHealthFactor: 2.0,
+            rebalanceThreshold: 1.5,
+            fibonacciMultiplier: 1.618,
+            quantumLeapFactor: 1.618
+          },
+          glitchEngine: {
+            enabled: true,
+            maxGlitchValue: 50000, // $50k max per glitch
+            autoOfframpThreshold: 1000, // Auto-offramp at $1k
+            fibonacciBase: 1.618
+          },
+          quantumAcquisition: {
+            enabled: true,
+            maxRiskLevel: 0.7,
+            minProfitThreshold: 100, // $100 minimum profit
+            complianceJurisdiction: 'SEC_US'
+          },
+          riskManagement: {
+            maxPositionSize: 100000, // $100k max position
+            stopLossPercentage: 0.1, // 10% stop loss
+            maxDailyLoss: 5000, // $5k max daily loss
+            emergencyShutdownThreshold: 0.9 // 90% risk threshold
+          }
+        };
+
+        console.log('🎯 Initializing Master Orchestration System...');
+        
+        const system = new MasterOrchestrationSystem(systemConfig);
+        setOrchestrationSystem(system);
+
+        // Subscribe to real-time updates
+        const unsubscribe = system.subscribeToUpdates((update: RealTimeUpdate) => {
+          setRecentUpdates(prev => [...prev.slice(-19), update]); // Keep last 20 updates
+          
+          // Update coins based on profit from system
+          if (update.profit && update.profit > 0) {
+            const coinsFromProfit = Math.floor(update.profit * 100); // $1 = 100 coins
+            setCoins(prev => prev + coinsFromProfit);
+            
+            // Record revenue in the system
+            system.recordRevenue(update.profit, update.type);
+            
+            toast({
+              title: "💰 Automated Profit!",
+              description: `+${coinsFromProfit} coins from ${update.type}`,
+              variant: "default",
+            });
+          }
+        });
+
+        // Update system metrics every 30 seconds
+        const metricsInterval = setInterval(async () => {
+          if (system) {
+            try {
+              const metrics = await system.getSystemMetrics();
+              setSystemMetrics(metrics);
+            } catch (error) {
+              console.error('Error updating system metrics:', error);
+            }
+          }
+        }, 30000);
+
+        console.log('✅ Master Orchestration System initialized successfully');
+
+        // Cleanup function
+        return () => {
+          unsubscribe();
+          clearInterval(metricsInterval);
+        };
+      } catch (error) {
+        console.error('❌ Failed to initialize orchestration system:', error);
+      }
+    };
+
+    initializeOrchestrationSystem();
+  }, []);
+
+  // Master system control functions
+  const startMasterSystem = async (): Promise<void> => {
+    if (!orchestrationSystem) {
+      toast({
+        title: "❌ System Not Ready",
+        description: "Master system is still initializing...",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await orchestrationSystem.startMasterSystem();
+      setIsSystemRunning(true);
+      
+      toast({
+        title: "🚀 Master System Started",
+        description: "All automated systems are now active!",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error starting master system:', error);
+      toast({
+        title: "❌ Startup Failed",
+        description: "Failed to start master system. Check console for details.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const stopMasterSystem = async (): Promise<void> => {
+    if (!orchestrationSystem) return;
+
+    try {
+      await orchestrationSystem.stopMasterSystem();
+      setIsSystemRunning(false);
+      
+      toast({
+        title: "🛑 Master System Stopped",
+        description: "All automated systems have been stopped.",
+        variant: "default",
+      });
+    } catch (error) {
+      console.error('Error stopping master system:', error);
+    }
+  };
+
+  const manualGlitchTrigger = async (nftId: string): Promise<boolean> => {
+    if (!orchestrationSystem) return false;
+
+    try {
+      // Trigger manual glitch through the system
+      const nft = nftItems.find(item => item.id.toString() === nftId);
+      if (!nft) return false;
+
+      // Simulate glitch trigger with Fibonacci exponential gain
+      const glitchMultiplier = 1.618 + Math.random() * 2; // 1.618 to 3.618x
+      const coinsGained = Math.floor(nft.price * glitchMultiplier);
+      
+      setCoins(prev => prev + coinsGained);
+      
+      // Record as system revenue
+      const profitValue = coinsGained / 100; // Convert to USD
+      orchestrationSystem.recordRevenue(profitValue, 'manual_glitch');
+      
+      toast({
+        title: "⚡ INFINITE GLITCH ACTIVATED!",
+        description: `${nft.name} generated ${coinsGained} coins with ${glitchMultiplier.toFixed(2)}x multiplier!`,
+        variant: "default",
+      });
+
+      return true;
+    } catch (error) {
+      console.error('Error triggering manual glitch:', error);
+      return false;
+    }
+  };
+
   // Energy regeneration over time
   useEffect(() => {
     const energyInterval = setInterval(() => {
@@ -464,6 +642,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     selectNFT,
     resetProgress,
     cashOut,
+    // Master orchestration system
+    orchestrationSystem,
+    systemMetrics,
+    isSystemRunning,
+    recentUpdates,
+    startMasterSystem,
+    stopMasterSystem,
+    manualGlitchTrigger,
   };
   
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
