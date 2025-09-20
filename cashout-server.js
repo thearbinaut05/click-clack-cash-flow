@@ -30,6 +30,7 @@ import winston from 'winston';
 import cors from 'cors';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
+import cron from 'node-cron';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -263,7 +264,202 @@ function logTransaction(transaction) {
 /**
  * Middleware to validate /cashout POST request body
  */
+/**
+ * PCI-Compliant PaymentMethod ID validation middleware
+ * Ensures only Stripe PaymentMethod IDs are accepted (never raw card data)
+ */
+function validatePaymentMethodId(req, res, next) {
+  const { paymentMethodId } = req.body;
+  
+  // PaymentMethod ID is required for PCI-compliant processing
+  if (!paymentMethodId) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'PaymentMethod ID is required. Use Stripe Elements to create PaymentMethods.' 
+    });
+  }
+  
+  // Validate PaymentMethod ID format (must start with pm_, ba_, or card_)
+  const validPrefixes = ['pm_', 'ba_', 'card_'];
+  const isValidFormat = validPrefixes.some(prefix => paymentMethodId.startsWith(prefix));
+  
+  if (!isValidFormat) {
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Invalid PaymentMethod ID format. Must be a valid Stripe PaymentMethod, bank account, or card ID.' 
+    });
+  }
+  
+  // Never accept raw card data - security check
+  const dangerousFields = ['cardNumber', 'cvv', 'expiryDate', 'exp_month', 'exp_year', 'cvc'];
+  const hasDangerousFields = dangerousFields.some(field => req.body[field]);
+  
+  if (hasDangerousFields) {
+    logger.error('PCI violation attempt: Raw card data detected', { 
+      ip: req.ip, 
+      userAgent: req.get('User-Agent'),
+      fields: Object.keys(req.body)
+    });
+    return res.status(400).json({ 
+      success: false, 
+      error: 'Raw card data not accepted. Use Stripe Elements to securely collect payment information.' 
+    });
+  }
+  
+  next();
+}
+
+/**
+ * Enhanced cashout request validation for production
+ */
 function validateCashoutRequest(req, res, next) {
+  const { userId, coins, paymentMethodId, email } = req.body;
+
+  // User ID validation
+  if (!userId || typeof userId !== 'string' || userId.trim() === '') {
+    return res.status(400).json({ success: false, error: 'Invalid or missing userId.' });
+  }
+
+  // Coins validation (minimum 100 coins = $1)
+  if (typeof coins !== 'number' || coins < 100) {
+    return res.status(400).json({ success: false, error: 'Coins must be a number and at least 100.' });
+  }
+
+  // PaymentMethod ID validation (already handled by validatePaymentMethodId middleware)
+  
+  // Email validation for notifications
+  if (email && (typeof email !== 'string' || !email.includes('@'))) {
+    return res.status(400).json({ success: false, error: 'Invalid email format.' });
+  }
+
+  next();
+}
+
+/**
+ * Create PaymentMethod endpoint for Stripe Elements integration
+ * This endpoint helps frontend create and validate PaymentMethods
+ */
+app.post('/api/payment-methods', rateLimit({ max: 10 }), async (req, res) => {
+  try {
+    const { paymentMethodId, userId, email } = req.body;
+    
+    // Validate PaymentMethod ID format
+    if (!paymentMethodId || !paymentMethodId.startsWith('pm_')) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid PaymentMethod ID. Must start with pm_' 
+      });
+    }
+    
+    // Retrieve PaymentMethod from Stripe to validate it exists
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    
+    if (!paymentMethod) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'PaymentMethod not found' 
+      });
+    }
+    
+    // TODO: Store PaymentMethod reference in database (not card data)
+    // This would typically save to a payment_methods table
+    logger.info('PaymentMethod validated', {
+      paymentMethodId: paymentMethod.id,
+      type: paymentMethod.type,
+      userId,
+      last4: paymentMethod.card?.last4,
+      brand: paymentMethod.card?.brand
+    });
+    
+    res.json({ 
+      success: true, 
+      paymentMethod: {
+        id: paymentMethod.id,
+        type: paymentMethod.type,
+        card: paymentMethod.card ? {
+          brand: paymentMethod.card.brand,
+          last4: paymentMethod.card.last4,
+          exp_month: paymentMethod.card.exp_month,
+          exp_year: paymentMethod.card.exp_year
+        } : null
+      }
+    });
+    
+  } catch (error) {
+    logger.error('PaymentMethod validation failed', { 
+      error: error.message,
+      paymentMethodId: req.body.paymentMethodId 
+    });
+    
+    if (error.type === 'StripeInvalidRequestError') {
+      res.status(400).json({ 
+        success: false, 
+        error: 'Invalid PaymentMethod ID' 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: 'PaymentMethod validation failed' 
+      });
+    }
+  }
+});
+
+/**
+ * Create Stripe Checkout Session for frontend integration
+ */
+app.post('/api/create-checkout-session', rateLimit({ max: 5 }), async (req, res) => {
+  try {
+    const { userId, email, amount, successUrl, cancelUrl } = req.body;
+    
+    // Validation
+    if (!userId || !email || !amount || !successUrl || !cancelUrl) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Missing required fields: userId, email, amount, successUrl, cancelUrl' 
+      });
+    }
+    
+    // Create Checkout Session for payment method setup
+    const session = await stripe.checkout.sessions.create({
+      mode: 'setup',
+      payment_method_types: ['card'],
+      customer_email: email,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: {
+        userId: userId,
+        purpose: 'payment_method_setup',
+        amount: amount.toString()
+      }
+    });
+    
+    logger.info('Checkout session created', {
+      sessionId: session.id,
+      userId,
+      email,
+      amount
+    });
+    
+    res.json({ 
+      success: true, 
+      sessionId: session.id,
+      url: session.url 
+    });
+    
+  } catch (error) {
+    logger.error('Checkout session creation failed', { error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to create checkout session' 
+    });
+  }
+});
+
+/**
+ * Original cashout endpoint validation function (kept for backward compatibility)
+ */
+function validateCashoutRequestLegacy(req, res, next) {
   const { userId, coins, payoutType, accountId, email } = req.body;
 
   if (!userId || typeof userId !== 'string' || userId.trim() === '') {
@@ -655,7 +851,148 @@ app.post('/onboarding-link', async (req, res) => {
 });
 
 // Cashout POST endpoint with validation middleware
-app.post('/cashout', validateCashoutRequest, async (req, res) => {
+/**
+ * PCI-Compliant Cashout Endpoint
+ * Only accepts Stripe PaymentMethod IDs - never raw card data
+ */
+app.post('/api/cashout', validatePaymentMethodId, validateCashoutRequest, async (req, res) => {
+  const { userId, coins, paymentMethodId, email, metadata } = req.body;
+  const amountCents = coins; // 1 coin = 1 cent in this system
+  const amountUSD = amountCents / 100;
+
+  logger.info('PCI-compliant cashout request', {
+    userId,
+    coins,
+    amountUSD,
+    paymentMethodId: paymentMethodId.substring(0, 8) + '...', // Log partial ID only
+    email
+  });
+
+  try {
+    // Validate PaymentMethod exists and is usable
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+    
+    if (!paymentMethod) {
+      throw new Error('PaymentMethod not found');
+    }
+
+    // Process payout using PaymentMethod ID
+    let payoutResult;
+    
+    if (paymentMethod.type === 'card') {
+      // Create transfer to the PaymentMethod (card)
+      const transfer = await stripe.transfers.create({
+        amount: amountCents,
+        currency: 'usd',
+        destination: paymentMethodId,
+        description: `Game cashout for user ${userId}`,
+        metadata: {
+          userId,
+          originalCoins: coins,
+          ...metadata
+        }
+      }, {
+        stripeAccount: process.env.CONNECTED_ACCOUNT_ID
+      });
+
+      payoutResult = {
+        success: true,
+        type: 'card_transfer',
+        transferId: transfer.id,
+        amount: amountUSD,
+        currency: 'usd',
+        paymentMethod: {
+          type: paymentMethod.type,
+          card: {
+            brand: paymentMethod.card.brand,
+            last4: paymentMethod.card.last4
+          }
+        }
+      };
+    } else {
+      // Handle other payment method types (bank accounts, etc.)
+      const payout = await stripe.payouts.create({
+        amount: amountCents,
+        currency: 'usd',
+        method: 'standard',
+        metadata: {
+          userId,
+          originalCoins: coins,
+          paymentMethodId,
+          ...metadata
+        }
+      }, {
+        stripeAccount: process.env.CONNECTED_ACCOUNT_ID
+      });
+
+      payoutResult = {
+        success: true,
+        type: 'standard_payout',
+        payoutId: payout.id,
+        amount: amountUSD,
+        currency: 'usd',
+        eta: payout.arrival_date
+      };
+    }
+
+    // Log successful transaction
+    logTransaction({
+      userId,
+      coins,
+      amountUSD,
+      payoutMethod: 'payment_method_id',
+      status: 'success',
+      details: payoutResult,
+      metadata: { paymentMethodId: paymentMethodId.substring(0, 8) + '...' }
+    });
+
+    res.json({
+      success: true,
+      userId,
+      amountUSD,
+      payoutMethod: 'payment_method_id',
+      details: payoutResult
+    });
+
+  } catch (error) {
+    logger.error('PCI-compliant cashout failed', {
+      userId,
+      error: error.message,
+      code: error.code,
+      type: error.type
+    });
+
+    // Log failed transaction
+    logTransaction({
+      userId,
+      coins,
+      amountUSD,
+      payoutMethod: 'payment_method_id',
+      status: 'failed',
+      error: error.message,
+      metadata: { paymentMethodId: paymentMethodId.substring(0, 8) + '...' }
+    });
+
+    // Return user-friendly error without exposing sensitive details
+    let userError = 'Cashout failed. Please try again.';
+    
+    if (error.code === 'insufficient_funds') {
+      userError = 'Insufficient funds in the payout account. Please try again later.';
+    } else if (error.code === 'invalid_request_error') {
+      userError = 'Invalid payment method. Please add a new payment method.';
+    }
+
+    res.status(400).json({
+      success: false,
+      error: userError,
+      userId,
+      amountUSD
+    });
+  }
+});
+
+// Legacy cashout endpoint (backward compatibility)
+app.post('/cashout', validateCashoutRequestLegacy, async (req, res) => {
   const { userId, coins, payoutType, accountId: reqAccountId, email, metadata } = req.body;
 
   // Use accountId from request or fallback to default in .env
@@ -1175,12 +1512,23 @@ app.listen(PORT, () => {
   logger.info(`Cashout server running on port ${PORT}`);
   logger.info('Ensure your .env file has STRIPE_SECRET_KEY and optionally CONNECTED_ACCOUNT_ID set for live payouts.');
   
-  // Start scheduled USD sweep (every hour)
-  setInterval(async () => {
-    logger.info('Running scheduled USD sweep...');
-    await sweepUSDFromDatabase();
-  }, 3600000); // Every hour (3600000 ms)
+  // Start scheduled USD sweep using node-cron (every 6 hours)
+  const cronSchedule = process.env.PAYOUT_CRON_SCHEDULE || '0 */6 * * *';
+  logger.info(`Setting up cron job with schedule: ${cronSchedule}`);
   
-  logger.info('Scheduled USD sweep started (runs every hour)');
+  cron.schedule(cronSchedule, async () => {
+    logger.info('Running scheduled USD sweep via cron...');
+    try {
+      await sweepUSDFromDatabase();
+      logger.info('Scheduled USD sweep completed successfully');
+    } catch (error) {
+      logger.error('Scheduled USD sweep failed', { error: error.message });
+    }
+  }, {
+    scheduled: true,
+    timezone: "UTC"
+  });
+  
+  logger.info(`Scheduled USD sweep started (runs on schedule: ${cronSchedule})`);
 });
 

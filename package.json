@@ -59,6 +59,7 @@
     "input-otp": "^1.2.4",
     "lucide-react": "^0.462.0",
     "next-themes": "^0.3.0",
+    "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "nodes.js": "^0.0.1-security",
     "pg": "^8.16.3",
