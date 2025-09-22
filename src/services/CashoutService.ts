@@ -10,13 +10,13 @@ interface CashoutRequest {
   coins: number;
   payoutType: string;
   email: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 interface CashoutResponse {
   success: boolean;
   error?: string;
-  details?: any;
+  details?: Record<string, unknown>;
   message?: string;
   isReal?: boolean;
   autonomous_revenue_balance?: number;

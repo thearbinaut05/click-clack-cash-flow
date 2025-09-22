@@ -100,7 +100,7 @@ serve(async (req) => {
     // Process different payout types with REAL Stripe operations
     switch (payoutType) {
       case 'standard':
-      case 'email':
+      case 'email': {
         // Create a payment intent for standard transfer
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
@@ -126,9 +126,10 @@ serve(async (req) => {
           client_secret: paymentIntent.client_secret
         };
         break;
+      }
 
       case 'virtual-card':
-      case 'instant_card':
+      case 'instant_card': {
         // Create a virtual card using Stripe Issuing
         try {
           const cardHolder = await stripe.issuing.cardholders.create({
@@ -178,9 +179,10 @@ serve(async (req) => {
           throw new Error('Virtual card creation not available. Please try standard payment.');
         }
         break;
+      }
 
       case 'bank-card':
-      case 'bank_account':
+      case 'bank_account': {
         // For bank transfers, we need to create an actual transfer
         // This requires the user to have a connected account or external account
         try {
@@ -209,6 +211,7 @@ serve(async (req) => {
           throw new Error('Bank transfer not available. Please set up bank account first.');
         }
         break;
+      }
 
       default:
         throw new Error(`Unsupported payout type: ${payoutType}`);

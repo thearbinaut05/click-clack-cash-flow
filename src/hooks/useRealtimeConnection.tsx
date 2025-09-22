@@ -10,6 +10,13 @@ interface RealtimeConnectionState {
   error: string | null;
 }
 
+interface ChannelConfig {
+  config?: Record<string, unknown>;
+  broadcast?: Record<string, unknown>;
+  presence?: Record<string, unknown>;
+  postgres_changes?: Array<Record<string, unknown>>;
+}
+
 export const useRealtimeConnection = () => {
   const [state, setState] = useState<RealtimeConnectionState>({
     isConnected: false,
@@ -21,7 +28,7 @@ export const useRealtimeConnection = () => {
 
   const [channels] = useState<Map<string, RealtimeChannel>>(new Map());
 
-  const subscribe = useCallback((channelName: string, config: any) => {
+  const subscribe = useCallback((channelName: string, config: ChannelConfig) => {
     if (channels.has(channelName)) {
       return channels.get(channelName);
     }
@@ -87,7 +94,7 @@ export const useRealtimeConnection = () => {
     currentSubscriptions.forEach(name => {
       setTimeout(() => subscribe(name, {}), 1000);
     });
-  }, [state.subscriptions, subscribe]);
+  }, [state.subscriptions, subscribe, channels]);
 
   useEffect(() => {
     // Monitor connection health

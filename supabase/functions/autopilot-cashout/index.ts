@@ -59,7 +59,7 @@ serve(async (req) => {
   }
 });
 
-async function startAutopilot(supabase: any, config: AutopilotConfig) {
+async function startAutopilot(supabase: ReturnType<typeof createClient>, config: AutopilotConfig) {
   console.log('Starting autopilot with config:', config);
   
   // Validate config
@@ -103,7 +103,7 @@ async function startAutopilot(supabase: any, config: AutopilotConfig) {
   });
 }
 
-async function stopAutopilot(supabase: any) {
+async function stopAutopilot(supabase: ReturnType<typeof createClient>) {
   console.log('Stopping autopilot');
   
   const { error } = await supabase

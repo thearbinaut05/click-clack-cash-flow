@@ -94,7 +94,7 @@ serve(async (req) => {
         });
         break;
 
-      case "audit_revenue":
+      case "audit_revenue": {
         // Audit existing revenue against Stripe
         const { data: transactions } = await supabase
           .from("autonomous_revenue_transactions")
@@ -128,10 +128,12 @@ serve(async (req) => {
         }
         result = { audit_results: auditResults };
         break;
+      }
 
-      case "get_balance":
+      case "get_balance": {
         result = await stripe.balance.retrieve();
         break;
+      }
 
       case "auto_fulfill_payment_intent": {
         // Automatically fulfill payment intent from available revenue

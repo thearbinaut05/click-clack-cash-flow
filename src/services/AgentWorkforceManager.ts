@@ -471,7 +471,7 @@ export class AgentWorkforceManager {
     return distribution;
   }
 
-  private extractRevenueFromResult(result: any): number {
+  private extractRevenueFromResult(result: Record<string, unknown>): number {
     // Extract revenue value from task result
     if (result && typeof result === 'object') {
       return result.revenue || result.earnings || result.value || 0;
@@ -517,7 +517,7 @@ export class AgentWorkforceManager {
           // Update agent configuration if available
           if (agentData.config) {
             try {
-              agent.updateConfig(agentData.config as any);
+              agent.updateConfig(agentData.config as Record<string, unknown>);
             } catch (error) {
               console.warn('Failed to update agent config:', error);
             }

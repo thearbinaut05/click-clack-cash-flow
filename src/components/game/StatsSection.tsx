@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/contexts/GameContext';
 import { 
   BadgeDollarSign, 
@@ -38,7 +38,7 @@ const StatsSection: React.FC = () => {
     
     // Initial optimization
     runOptimization();
-  }, [adService]);
+  }, [adService, runOptimization]);
   
   const calculateCTR = () => {
     if (adImpressions === 0) return '0%';
@@ -50,7 +50,7 @@ const StatsSection: React.FC = () => {
     return `${Math.round((adConversions / adClicks) * 100)}%`;
   };
   
-  const runOptimization = async () => {
+  const runOptimization = useCallback(async () => {
     setIsOptimizing(true);
     try {
       const optimizationResult = await adService.optimizeAdStrategy();
@@ -61,7 +61,7 @@ const StatsSection: React.FC = () => {
     } finally {
       setIsOptimizing(false);
     }
-  };
+  }, [adService]);
   
   const getEarningsColor = () => {
     if (earnings > 20) return "text-green-400";

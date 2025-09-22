@@ -12,14 +12,14 @@ export interface AgentConfig {
 export interface AgentTask {
   id: string;
   type: string;
-  payload: any;
+  payload: Record<string, unknown>;
   priority: number;
   assignedAgent?: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   createdAt: Date;
   startedAt?: Date;
   completedAt?: Date;
-  result?: any;
+  result?: Record<string, unknown>;
   error?: string;
 }
 
@@ -54,7 +54,7 @@ export abstract class BaseAgent {
     };
   }
 
-  abstract executeTask(task: AgentTask): Promise<any>;
+  abstract executeTask(task: AgentTask): Promise<Record<string, unknown>>;
   abstract canHandleTask(task: AgentTask): boolean;
   abstract getSpecializedCapabilities(): string[];
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +18,25 @@ import {
 import { AutonomousAgentService } from '@/services/AutonomousAgentService';
 import { toast } from '@/hooks/use-toast';
 
+interface AgentMetrics {
+  totalRevenue?: number;
+  dailyRevenue?: number;
+  weeklyRevenue?: number;
+  monthlyRevenue?: number;
+  activeAgents?: number;
+  completedTasks?: number;
+  successRate?: number;
+  performance?: {
+    averageResponseTime?: number;
+    uptimePercentage?: number;
+    tasksPerHour?: number;
+  };
+  status?: string;
+}
+
 const AutonomousAgentDashboard: React.FC = () => {
   const [agentService] = useState(() => AutonomousAgentService.getInstance());
-  const [metrics, setMetrics] = useState<any>(null);
+  const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -28,9 +44,9 @@ const AutonomousAgentDashboard: React.FC = () => {
     loadMetrics();
     const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [loadMetrics]);
 
-  const loadMetrics = async () => {
+  const loadMetrics = useCallback(async () => {
     try {
       const data = await agentService.getPerformanceMetrics();
       setMetrics(data);
@@ -38,7 +54,7 @@ const AutonomousAgentDashboard: React.FC = () => {
     } catch (error) {
       console.error('Error loading metrics:', error);
     }
-  };
+  }, [agentService]);
 
   const handleStartStop = async () => {
     setIsLoading(true);

@@ -1,6 +1,24 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+// Type definitions
+interface OfferScrapingPayload {
+  sources?: string[];
+  filters?: Record<string, unknown>;
+}
+
+interface CampaignOptimizationPayload {
+  campaigns?: unknown[];
+  budget?: number;
+  targetROI?: number;
+}
+
+interface MarketAnalysisPayload {
+  timeframe?: string;
+  categories?: string[];
+  metrics?: string[];
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -28,7 +46,7 @@ serve(async (req) => {
     const { action, payload } = await req.json();
 
     switch (action) {
-      case "initialize_swarms":
+      case "initialize_swarms": {
         // Create revenue optimization swarm
         const { data: revenueSwarm } = await supabase
           .from("agent_swarms")
@@ -81,8 +99,9 @@ serve(async (req) => {
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
 
-      case "scrape_market_data":
+      case "scrape_market_data": {
         const scrapeResults = [];
         
         // Scrape OfferVault-style data (simulated real API calls)
@@ -119,8 +138,9 @@ serve(async (req) => {
           JSON.stringify({ scraped_offers: scrapeResults }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
 
-      case "optimize_revenue_streams":
+      case "optimize_revenue_streams": {
         // Get current revenue streams
         const { data: streams } = await supabase
           .from("autonomous_revenue_streams")
@@ -186,8 +206,9 @@ serve(async (req) => {
           JSON.stringify({ optimizations }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
 
-      case "execute_agent_tasks":
+      case "execute_agent_tasks": {
         // Get pending tasks
         const { data: tasks } = await supabase
           .from("agent_tasks")
@@ -248,6 +269,7 @@ serve(async (req) => {
           JSON.stringify({ task_results: taskResults }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
 
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -292,17 +314,17 @@ async function generateMockOfferData(source: string) {
   return offers;
 }
 
-async function executeOfferScraping(payload: any) {
+async function executeOfferScraping(payload: OfferScrapingPayload) {
   // Execute real-time offer scraping
   return { offers_scraped: 15, new_high_performers: 3 };
 }
 
-async function executeCampaignOptimization(payload: any) {
+async function executeCampaignOptimization(payload: CampaignOptimizationPayload) {
   // Execute campaign optimization logic
   return { campaigns_optimized: 5, avg_improvement: 23.5 };
 }
 
-async function executeMarketAnalysis(payload: any) {
+async function executeMarketAnalysis(payload: MarketAnalysisPayload) {
   // Execute market trend analysis
   return { trends_identified: 8, opportunities: 3 };
 }

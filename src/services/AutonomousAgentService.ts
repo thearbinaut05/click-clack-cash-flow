@@ -233,7 +233,7 @@ export class AutonomousAgentService {
     }
   }
 
-  async createCustomTask(taskType: string, payload: any, priority: number = 5) {
+  async createCustomTask(taskType: string, payload: Record<string, unknown>, priority: number = 5) {
     try {
       const { data, error } = await supabase
         .from('agent_tasks')
