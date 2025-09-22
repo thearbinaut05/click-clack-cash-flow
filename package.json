@@ -9,6 +9,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
+    "start": "node auto-start.cjs",
+    "start:auto": "node auto-start.cjs",
     "analytics": "node cli-analytics.cjs",
     "analytics:enhanced": "node cli-analytics-enhanced.cjs",
     "analytics:monitor": "node cli-analytics-enhanced.cjs",

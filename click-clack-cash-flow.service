@@ -1,0 +1,34 @@
+[Unit]
+Description=Click Clack Cash Flow Auto-Server Manager
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/click-clack-cash-flow
+ExecStart=/usr/bin/node auto-start.cjs
+Restart=always
+RestartSec=10
+Environment=NODE_ENV=production
+Environment=PORT=4000
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/click-clack-cash-flow
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=click-clack-cash-flow
+
+[Install]
+WantedBy=multi-user.target

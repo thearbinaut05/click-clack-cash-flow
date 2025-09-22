@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { BadgeDollarSign, ArrowRight, Loader2, CreditCard, Wallet, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { BadgeDollarSign, ArrowRight, Loader2, CreditCard, Wallet, AlertCircle, CheckCircle2, Bitcoin, Coins } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useGame } from '@/contexts/GameContext';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -13,6 +13,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { CASHOUT_METHODS } from '@/utils/constants';
 import { CashoutService } from '@/services/CashoutService';
+import { CryptoPaymentService } from '@/services/CryptoPaymentService';
+import { validateCryptoAddress, getCryptoAddressExample } from '@/utils/cryptoValidation';
 import TestCashOutButton from './TestCashOutButton';
 
 interface CashOutDialogProps {
@@ -23,9 +25,30 @@ interface CashOutDialogProps {
 // Form validation schema using zod
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
-  method: z.enum([CASHOUT_METHODS.STANDARD, CASHOUT_METHODS.VIRTUAL_CARD, CASHOUT_METHODS.BANK_CARD], {
+  method: z.enum([
+    CASHOUT_METHODS.STANDARD, 
+    CASHOUT_METHODS.VIRTUAL_CARD, 
+    CASHOUT_METHODS.BANK_CARD,
+    CASHOUT_METHODS.BITCOIN,
+    CASHOUT_METHODS.ETHEREUM,
+    CASHOUT_METHODS.USDC
+  ], {
     required_error: "Please select a payment method",
   }),
+  walletAddress: z.string().optional(),
+}).refine((data) => {
+  // If crypto method is selected, wallet address is required and must be valid
+  if ([CASHOUT_METHODS.BITCOIN, CASHOUT_METHODS.ETHEREUM, CASHOUT_METHODS.USDC].includes(data.method)) {
+    if (!data.walletAddress) {
+      return false;
+    }
+    // Validate the crypto address format
+    return validateCryptoAddress(data.walletAddress, data.method);
+  }
+  return true;
+}, {
+  message: "Invalid wallet address for selected cryptocurrency",
+  path: ["walletAddress"],
 });
 
 type CashOutFormValues = z.infer<typeof formSchema>;
@@ -44,9 +67,13 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
-      method: CASHOUT_METHODS.STANDARD
+      method: CASHOUT_METHODS.STANDARD,
+      walletAddress: ''
     }
   });
+
+  const selectedMethod = form.watch('method');
+  const isCryptoMethod = [CASHOUT_METHODS.BITCOIN, CASHOUT_METHODS.ETHEREUM, CASHOUT_METHODS.USDC].includes(selectedMethod);
 
   // Reset form state when dialog opens/closes
   useEffect(() => {
@@ -76,10 +103,50 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       console.log("Attempting cashout:", { 
         amount: cashValue, 
         email: values.email,
-        method: values.method 
+        method: values.method,
+        walletAddress: values.walletAddress
       });
       
-      // Map frontend method to backend payout type
+      // Handle cryptocurrency payments
+      if (isCryptoMethod && values.walletAddress) {
+        const cryptoService = CryptoPaymentService.getInstance();
+        const cryptoResult = await cryptoService.processCryptoPayment({
+          userId: `user_${Date.now()}`,
+          amount: parseFloat(cashValue),
+          currency: values.method as 'bitcoin' | 'ethereum' | 'usdc',
+          walletAddress: values.walletAddress,
+          email: values.email,
+          metadata: {
+            gameSession: Date.now(),
+            coinCount: coins
+          }
+        });
+
+        if (!cryptoResult.success) {
+          throw new Error(cryptoResult.error || 'Crypto payment processing failed');
+        }
+
+        // Reset coins in game context
+        await cashOut(values.email);
+
+        const cryptoAmount = cryptoResult.actualCryptoAmount?.toFixed(8) || '0';
+        const currencySymbol = values.method.toUpperCase();
+        
+        setSuccess(
+          `${cryptoAmount} ${currencySymbol} will be sent to ${values.walletAddress}! ` +
+          `Transaction ID: ${cryptoResult.transactionId}. ` +
+          `Estimated delivery: ${cryptoResult.estimatedDelivery}`
+        );
+
+        toast({
+          title: "Crypto Payment Processed",
+          description: `${cryptoAmount} ${currencySymbol} payment initiated`,
+        });
+
+        return;
+      }
+      
+      // Handle traditional payments (existing code)
       let payoutType;
       switch (values.method) {
         case CASHOUT_METHODS.VIRTUAL_CARD:
@@ -275,12 +342,87 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
                             </div>
                           </FormLabel>
                         </FormItem>
+                        
+                        {/* Cryptocurrency Options */}
+                        <div className="border-t border-white/10 pt-2 mt-2">
+                          <p className="text-xs text-gray-400 mb-2">💰 Cryptocurrency Options</p>
+                        </div>
+                        
+                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md p-3 bg-black/20 border border-white/10 border-l-orange-500">
+                          <FormControl>
+                            <RadioGroupItem value={CASHOUT_METHODS.BITCOIN} />
+                          </FormControl>
+                          <FormLabel className="font-normal flex items-center gap-2">
+                            <Bitcoin className="h-4 w-4 text-orange-500" />
+                            <div>
+                              <div className="text-sm">Bitcoin (BTC)</div>
+                              <div className="text-xs text-gray-400">Send to your Bitcoin wallet address</div>
+                            </div>
+                          </FormLabel>
+                        </FormItem>
+                        
+                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md p-3 bg-black/20 border border-white/10 border-l-blue-500">
+                          <FormControl>
+                            <RadioGroupItem value={CASHOUT_METHODS.ETHEREUM} />
+                          </FormControl>
+                          <FormLabel className="font-normal flex items-center gap-2">
+                            <Coins className="h-4 w-4 text-blue-500" />
+                            <div>
+                              <div className="text-sm">Ethereum (ETH)</div>
+                              <div className="text-xs text-gray-400">Send to your Ethereum wallet address</div>
+                            </div>
+                          </FormLabel>
+                        </FormItem>
+                        
+                        <FormItem className="flex items-center space-x-3 space-y-0 rounded-md p-3 bg-black/20 border border-white/10 border-l-green-500">
+                          <FormControl>
+                            <RadioGroupItem value={CASHOUT_METHODS.USDC} />
+                          </FormControl>
+                          <FormLabel className="font-normal flex items-center gap-2">
+                            <BadgeDollarSign className="h-4 w-4 text-green-500" />
+                            <div>
+                              <div className="text-sm">USD Coin (USDC)</div>
+                              <div className="text-xs text-gray-400">Send to your USDC wallet address</div>
+                            </div>
+                          </FormLabel>
+                        </FormItem>
                       </RadioGroup>
                     </FormControl>
                     <FormMessage className="text-red-400 text-xs" />
                   </FormItem>
                 )}
               />
+              
+              {/* Crypto Wallet Address Field */}
+              {isCryptoMethod && (
+                <FormField
+                  control={form.control}
+                  name="walletAddress"
+                  render={({ field }) => (
+                    <FormItem className="space-y-1">
+                      <FormLabel className="text-white flex items-center gap-2">
+                        <Wallet className="h-4 w-4" />
+                        {selectedMethod === CASHOUT_METHODS.BITCOIN && 'Bitcoin Wallet Address'}
+                        {selectedMethod === CASHOUT_METHODS.ETHEREUM && 'Ethereum Wallet Address'}
+                        {selectedMethod === CASHOUT_METHODS.USDC && 'USDC Wallet Address'}
+                      </FormLabel>
+                      <FormControl>
+                        <Input 
+                          className="bg-black/30 border-white/20 text-white focus:border-game-green font-mono text-sm" 
+                          placeholder={getCryptoAddressExample(selectedMethod)}
+                          {...field}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-gray-400">
+                        {selectedMethod === CASHOUT_METHODS.BITCOIN && 'Enter your Bitcoin wallet address (Legacy, SegWit, or Bech32 format)'}
+                        {selectedMethod === CASHOUT_METHODS.ETHEREUM && 'Enter your Ethereum wallet address (0x format)'}
+                        {selectedMethod === CASHOUT_METHODS.USDC && 'Enter your USDC wallet address (Ethereum-compatible address)'}
+                      </p>
+                      <FormMessage className="text-red-400 text-xs" />
+                    </FormItem>
+                  )}
+                />
+              )}
           
               <div className="mb-4 p-3 bg-green-900/20 border border-green-600/30 rounded-lg mt-4">
                 <p className="text-sm text-green-300">

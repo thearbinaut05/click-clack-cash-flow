@@ -18,14 +18,20 @@ export const DEFAULT_CASHOUT_METHOD = 'standard';
 export const CASHOUT_METHODS = {
   STANDARD: 'standard',
   VIRTUAL_CARD: 'virtual-card',
-  BANK_CARD: 'bank-card'
+  BANK_CARD: 'bank-card',
+  BITCOIN: 'bitcoin',
+  ETHEREUM: 'ethereum',
+  USDC: 'usdc'
 };
 
 // Stripe API payout types (used by the server)
 export const PAYOUT_TYPES = {
   INSTANT_CARD: 'instant_card',
   BANK_ACCOUNT: 'bank_account',
-  EMAIL: 'email'
+  EMAIL: 'email',
+  BITCOIN: 'bitcoin',
+  ETHEREUM: 'ethereum',
+  USDC: 'usdc'
 };
 
 // Production API endpoints using Supabase edge functions
