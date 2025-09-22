@@ -4,7 +4,8 @@ const { exec } = require('child_process');
 
 // Define the necessary files and their content
 const files = {
-  '.env': `
+  '.env': `STRIPE_SECRET_KEY=your_stripe_secret_key_here
+PORT=3000`,
   'server.js': `const express = require('express');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const cors = require('cors');
@@ -95,7 +96,7 @@ app.post('/api/process-payout', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(\`Server is running on http://localhost:\${PORT}\`);
-});`
+});\`
 };
 
 // Function to create files if they don't exist
@@ -104,9 +105,9 @@ const createFiles = () => {
     const filePath = path.join(__dirname, file);
     if (!fs.existsSync(filePath)) {
       fs.writeFileSync(filePath, files[file]);
-      console.log(\`Created: \${file}\`);
+      console.log(`Created: ${file}`);
     } else {
-      console.log(\`File already exists: \${file}\`);
+      console.log(`File already exists: ${file}`);
     }
   });
 };
@@ -115,11 +116,11 @@ const createFiles = () => {
 const installPackages = () => {
   exec('npm install express stripe cors body-parser dotenv', (error, stdout, stderr) => {
     if (error) {
-      console.error(\`Error installing packages: \${error.message}\`);
+      console.error(`Error installing packages: ${error.message}`);
       return;
     }
     if (stderr) {
-      console.error(\`Error: \${stderr}\`);
+      console.error(`Error: ${stderr}`);
       return;
     }
     console.log(stdout);
@@ -131,11 +132,11 @@ const installPackages = () => {
 const startServer = () => {
   exec('node server.js', (error, stdout, stderr) => {
     if (error) {
-      console.error(\`Error starting server: \${error.message}\`);
+      console.error(`Error starting server: ${error.message}`);
       return;
     }
     if (stderr) {
-      console.error(\`Error: \${stderr}\`);
+      console.error(`Error: ${stderr}`);
       return;
     }
     console.log(stdout);
