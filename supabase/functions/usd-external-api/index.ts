@@ -111,7 +111,7 @@ serve(async (req) => {
   }
 });
 
-async function handleSummary(supabase: any, format: string): Promise<Response> {
+async function handleSummary(supabase: ReturnType<typeof createClient>, format: string): Promise<Response> {
   // Get application balance
   const { data: balanceData } = await supabase
     .from('application_balance')
@@ -167,7 +167,7 @@ async function handleSummary(supabase: any, format: string): Promise<Response> {
   });
 }
 
-async function handleDetailed(supabase: any, format: string): Promise<Response> {
+async function handleDetailed(supabase: ReturnType<typeof createClient>, format: string): Promise<Response> {
   // Get summary first
   const summaryResponse = await handleSummary(supabase, 'json');
   const summary = await summaryResponse.json();
@@ -237,7 +237,7 @@ async function handleDetailed(supabase: any, format: string): Promise<Response> 
   });
 }
 
-async function handleVerification(supabase: any, format: string): Promise<Response> {
+async function handleVerification(supabase: ReturnType<typeof createClient>, format: string): Promise<Response> {
   const verificationResults = [];
 
   // Verify application balance consistency
@@ -353,7 +353,7 @@ function convertDetailedToCSV(report: USDDetailedReport): string {
   return csv;
 }
 
-function convertVerificationToCSV(verification: any): string {
+function convertVerificationToCSV(verification: Record<string, unknown>): string {
   let csv = 'Check,Status,Details\n';
   
   for (const result of verification.results) {

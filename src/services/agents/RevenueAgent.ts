@@ -154,8 +154,8 @@ export class RevenueAgent extends BaseAgent {
 
     // Identify bottlenecks
     const bottlenecks = Object.entries(analysis)
-      .filter(([_, data]: [string, any]) => data.dropOffRate > 0.5)
-      .map(([stage, data]: [string, any]) => ({ stage, ...data }));
+      .filter(([_, data]: [string, Record<string, unknown>]) => (data.dropOffRate as number) > 0.5)
+      .map(([stage, data]: [string, Record<string, unknown>]) => ({ stage, ...data }));
 
     return {
       funnelAnalysis: analysis,
@@ -165,7 +165,7 @@ export class RevenueAgent extends BaseAgent {
     };
   }
 
-  private async implementPricingStrategy(payload: any): Promise<any> {
+  private async implementPricingStrategy(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { productId, currentPrice, marketData, competitorPrices } = payload;
 
     // Dynamic pricing algorithm
