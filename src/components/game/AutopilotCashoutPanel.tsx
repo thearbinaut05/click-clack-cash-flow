@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,13 @@ interface AutopilotConfig {
   lastCashoutAt?: string;
 }
 
+interface RecentCashout {
+  amount: number;
+  created_at: string;
+  status?: string;
+  transaction_id?: string;
+}
+
 export default function AutopilotCashoutPanel() {
   const [config, setConfig] = useState<AutopilotConfig>({
     enabled: false,
@@ -37,14 +44,14 @@ export default function AutopilotCashoutPanel() {
   });
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(true);
-  const [recentCashouts, setRecentCashouts] = useState([]);
+  const [recentCashouts, setRecentCashouts] = useState<RecentCashout[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     loadAutopilotStatus();
-  }, []);
+  }, [loadAutopilotStatus]);
 
-  const loadAutopilotStatus = async () => {
+  const loadAutopilotStatus = useCallback(async () => {
     try {
       setStatusLoading(true);
       const { data, error } = await supabase.functions.invoke('autopilot-cashout', {
@@ -80,7 +87,7 @@ export default function AutopilotCashoutPanel() {
     } finally {
       setStatusLoading(false);
     }
-  };
+  }, [toast]);
 
   const handleStartAutopilot = async () => {
     if (!config.email) {
@@ -386,7 +393,7 @@ export default function AutopilotCashoutPanel() {
             <div>
               <h3 className="text-lg font-semibold mb-3">Recent Autopilot Cashouts</h3>
               <div className="space-y-2">
-                {recentCashouts.slice(0, 5).map((cashout: any, index) => (
+                {recentCashouts.slice(0, 5).map((cashout: RecentCashout, index) => (
                   <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <div className="font-medium">${cashout.amount.toFixed(2)}</div>
