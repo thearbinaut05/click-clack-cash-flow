@@ -1,17 +1,34 @@
 import { BaseAgent, AgentTask } from './BaseAgent';
 import { supabase } from '@/integrations/supabase/client';
 
-export class MarketAgent extends BaseAgent {
-  private marketData: Map<string, any> = new Map();
-  private arbitrageOpportunities: Array<{
-    opportunity: string;
-    potential: number;
-    risk: number;
-    platforms: string[];
-    timestamp: Date;
-  }> = [];
+interface MarketDataEntry {
+  price: number;
+  volume: number;
+  timestamp: Date;
+  source: string;
+  metadata?: Record<string, unknown>;
+}
 
-  constructor(config: any) {
+interface ArbitrageOpportunity {
+  opportunity: string;
+  potential: number;
+  risk: number;
+  platforms: string[];
+  timestamp: Date;
+}
+
+interface MarketAgentConfig {
+  id: string;
+  name: string;
+  capabilities?: string[];
+  [key: string]: unknown;
+}
+
+export class MarketAgent extends BaseAgent {
+  private marketData: Map<string, MarketDataEntry> = new Map();
+  private arbitrageOpportunities: ArbitrageOpportunity[] = [];
+
+  constructor(config: MarketAgentConfig) {
     super({
       ...config,
       type: 'market',
@@ -19,7 +36,7 @@ export class MarketAgent extends BaseAgent {
     });
   }
 
-  async executeTask(task: AgentTask): Promise<any> {
+  async executeTask(task: AgentTask): Promise<Record<string, unknown>> {
     const startTime = Date.now();
 
     try {
@@ -56,7 +73,7 @@ export class MarketAgent extends BaseAgent {
     return ['Real-time market analysis', 'Arbitrage opportunity detection', 'Competitive intelligence gathering', 'Market trend prediction'];
   }
 
-  private async analyzeMarketTrends(payload: any): Promise<any> {
+  private async analyzeMarketTrends(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const { data: offers } = await supabase
         .from('market_offers')
@@ -83,7 +100,7 @@ export class MarketAgent extends BaseAgent {
     }
   }
 
-  private async detectArbitrageOpportunities(payload: any): Promise<any> {
+  private async detectArbitrageOpportunities(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       // Mock arbitrage detection - in real implementation this would analyze multiple platforms
       const opportunities = [
@@ -109,7 +126,7 @@ export class MarketAgent extends BaseAgent {
     }
   }
 
-  private async gatherCompetitiveIntelligence(payload: any): Promise<any> {
+  private async gatherCompetitiveIntelligence(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       // Mock competitive intelligence gathering
       const intelligence = {
@@ -134,7 +151,7 @@ export class MarketAgent extends BaseAgent {
     }
   }
 
-  private async predictMarketChanges(payload: any): Promise<any> {
+  private async predictMarketChanges(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       // Mock market prediction
       const predictions = {

@@ -1,16 +1,35 @@
 import { BaseAgent, AgentTask } from './BaseAgent';
 import { supabase } from '@/integrations/supabase/client';
 
-export class RevenueAgent extends BaseAgent {
-  private revenueStreams: Map<string, any> = new Map();
-  private optimizationHistory: Array<{
-    timestamp: Date;
-    strategy: string;
-    improvement: number;
-    revenue: number;
-  }> = [];
+interface RevenueStream {
+  id: string;
+  name: string;
+  revenue: number;
+  performance: number;
+  strategy: string;
+  lastOptimized?: Date;
+  metadata?: Record<string, unknown>;
+}
 
-  constructor(config: any) {
+interface OptimizationHistory {
+  timestamp: Date;
+  strategy: string;
+  improvement: number;
+  revenue: number;
+}
+
+interface RevenueAgentConfig {
+  id: string;
+  name: string;
+  capabilities?: string[];
+  [key: string]: unknown;
+}
+
+export class RevenueAgent extends BaseAgent {
+  private revenueStreams: Map<string, RevenueStream> = new Map();
+  private optimizationHistory: OptimizationHistory[] = [];
+
+  constructor(config: RevenueAgentConfig) {
     super({
       ...config,
       type: 'revenue',
@@ -18,7 +37,7 @@ export class RevenueAgent extends BaseAgent {
     });
   }
 
-  async executeTask(task: AgentTask): Promise<any> {
+  async executeTask(task: AgentTask): Promise<Record<string, unknown>> {
     const startTime = Date.now();
 
     try {
@@ -55,7 +74,7 @@ export class RevenueAgent extends BaseAgent {
     return ['Dynamic pricing algorithms', 'Conversion rate optimization', 'Revenue stream analysis', 'ROI maximization'];
   }
 
-  private async optimizeRevenueStream(payload: any): Promise<any> {
+  private async optimizeRevenueStream(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { streamId, currentMetrics, marketData } = payload;
 
     // Analyze current performance
@@ -113,7 +132,7 @@ export class RevenueAgent extends BaseAgent {
     return { message: 'No significant optimization opportunities found' };
   }
 
-  private async analyzeConversionFunnel(payload: any): Promise<any> {
+  private async analyzeConversionFunnel(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { funnelData, timeRange } = payload;
 
     // Analyze each funnel stage
