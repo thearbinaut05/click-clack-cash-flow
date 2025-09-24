@@ -47,10 +47,6 @@ export default function AutopilotCashoutPanel() {
   const [recentCashouts, setRecentCashouts] = useState<RecentCashout[]>([]);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadAutopilotStatus();
-  }, [loadAutopilotStatus]);
-
   const loadAutopilotStatus = useCallback(async () => {
     try {
       setStatusLoading(true);
@@ -79,15 +75,22 @@ export default function AutopilotCashoutPanel() {
       setRecentCashouts(data.recent_cashouts || []);
     } catch (error) {
       console.error('Error loading autopilot status:', error);
+      // Set fallback data when service fails
+      setConfig(prev => ({ ...prev, enabled: false }));
+      setRecentCashouts([]);
       toast({
-        title: "Error",
-        description: "Failed to load autopilot status",
+        title: "Connection Issue",
+        description: "Unable to load autopilot status. Running in offline mode.",
         variant: "destructive",
       });
     } finally {
       setStatusLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    loadAutopilotStatus();
+  }, [loadAutopilotStatus]);
 
   const handleStartAutopilot = async () => {
     if (!config.email) {

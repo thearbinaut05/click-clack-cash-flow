@@ -13,9 +13,11 @@ import {
   Pause,
   Activity,
   Target,
-  Gauge
+  Gauge,
+  WifiOff
 } from 'lucide-react';
 import { AutonomousAgentService } from '@/services/AutonomousAgentService';
+import SupabaseHealthService from '@/services/SupabaseHealthService';
 import { toast } from '@/hooks/use-toast';
 
 interface AgentMetrics {
@@ -36,25 +38,65 @@ interface AgentMetrics {
 
 const AutonomousAgentDashboard: React.FC = () => {
   const [agentService] = useState(() => AutonomousAgentService.getInstance());
+  const [healthService] = useState(() => SupabaseHealthService.getInstance());
   const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+
+  const loadMetrics = useCallback(async () => {
+    try {
+      // Use health service to check if we should use fallback
+      const data = await healthService.withFallback(
+        () => agentService.getPerformanceMetrics(),
+        {
+          totalRevenue: 0,
+          dailyRevenue: 0,
+          weeklyRevenue: 0,
+          monthlyRevenue: 0,
+          activeAgents: 0,
+          completedTasks: 0,
+          successRate: 0,
+          performance: {
+            averageResponseTime: 0,
+            uptimePercentage: 0,
+            tasksPerHour: 0,
+          },
+          status: 'offline'
+        },
+        'Load Agent Metrics'
+      );
+      
+      setMetrics(data);
+      setIsRunning(data?.isRunning || false);
+      setIsOffline(healthService.isOfflineMode());
+    } catch (error) {
+      console.error('Error loading metrics:', error);
+      // Set fallback data when service fails
+      setMetrics({
+        totalRevenue: 0,
+        dailyRevenue: 0,
+        weeklyRevenue: 0,
+        monthlyRevenue: 0,
+        activeAgents: 0,
+        completedTasks: 0,
+        successRate: 0,
+        performance: {
+          averageResponseTime: 0,
+          uptimePercentage: 0,
+          tasksPerHour: 0,
+        },
+        status: 'offline'
+      });
+      setIsOffline(true);
+    }
+  }, [agentService, healthService]);
 
   useEffect(() => {
     loadMetrics();
     const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
     return () => clearInterval(interval);
   }, [loadMetrics]);
-
-  const loadMetrics = useCallback(async () => {
-    try {
-      const data = await agentService.getPerformanceMetrics();
-      setMetrics(data);
-      setIsRunning(data?.isRunning || false);
-    } catch (error) {
-      console.error('Error loading metrics:', error);
-    }
-  }, [agentService]);
 
   const handleStartStop = async () => {
     setIsLoading(true);
@@ -154,10 +196,21 @@ const AutonomousAgentDashboard: React.FC = () => {
           </div>
           
           <div className="mt-4 flex items-center gap-2">
-            <div className={`h-3 w-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
-            <span className="text-sm text-gray-400">
-              Status: {isRunning ? 'Active Operations' : 'Standby Mode'}
-            </span>
+            {isOffline ? (
+              <>
+                <WifiOff className="h-3 w-3 text-orange-500" />
+                <span className="text-sm text-orange-400">
+                  Status: Offline Mode (Limited Functionality)
+                </span>
+              </>
+            ) : (
+              <>
+                <div className={`h-3 w-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`} />
+                <span className="text-sm text-gray-400">
+                  Status: {isRunning ? 'Active Operations' : 'Standby Mode'}
+                </span>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
