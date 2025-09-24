@@ -28,10 +28,6 @@ export default function ExternalAccountsPanel() {
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadExternalAccounts();
-  }, [loadExternalAccounts]);
-
   const loadExternalAccounts = useCallback(async () => {
     try {
       setLoading(true);
@@ -88,15 +84,21 @@ export default function ExternalAccountsPanel() {
       setAccounts(externalAccounts);
     } catch (error) {
       console.error('Error loading external accounts:', error);
+      // Set fallback empty accounts data when service fails
+      setAccounts([]);
       toast({
-        title: "Error",
-        description: "Failed to load external account balances",
+        title: "Connection Issue",
+        description: "Unable to load external accounts. Running in offline mode.",
         variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    loadExternalAccounts();
+  }, [loadExternalAccounts]);
 
   const handleTransfer = async () => {
     if (!selectedAccount || !transferAmount) return;

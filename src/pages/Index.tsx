@@ -12,6 +12,7 @@ import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
 import AutopilotCashoutPanel from "@/components/game/AutopilotCashoutPanel";
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { motion } from 'framer-motion';
 
 const Index = () => {
@@ -98,32 +99,52 @@ const Index = () => {
             
             {/* Revenue & External Accounts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AutonomousRevenueDisplay />
-              <AutonomousAgentDashboard />
+              <ErrorBoundary componentName="AutonomousRevenueDisplay">
+                <AutonomousRevenueDisplay />
+              </ErrorBoundary>
+              <ErrorBoundary componentName="AutonomousAgentDashboard">
+                <AutonomousAgentDashboard />
+              </ErrorBoundary>
             </div>
             
             {/* Server Connection Status */}
-            <ServerConnectionStatus />
+            <ErrorBoundary componentName="ServerConnectionStatus">
+              <ServerConnectionStatus />
+            </ErrorBoundary>
             
             {/* External Accounts Panel */}
-            <ExternalAccountsPanel />
+            <ErrorBoundary componentName="ExternalAccountsPanel">
+              <ExternalAccountsPanel />
+            </ErrorBoundary>
             
             {/* Autopilot Cashout Panel */}
-            <AutopilotCashoutPanel />
+            <ErrorBoundary componentName="AutopilotCashoutPanel">
+              <AutopilotCashoutPanel />
+            </ErrorBoundary>
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="space-y-6">
-                <StatsSection />
-                <ShopSection />
+                <ErrorBoundary componentName="StatsSection">
+                  <StatsSection />
+                </ErrorBoundary>
+                <ErrorBoundary componentName="ShopSection">
+                  <ShopSection />
+                </ErrorBoundary>
               </div>
               
               <div className="flex flex-col items-center justify-center">
-                <GameHeader />
-                <TapArea />
+                <ErrorBoundary componentName="GameHeader">
+                  <GameHeader />
+                </ErrorBoundary>
+                <ErrorBoundary componentName="TapArea">
+                  <TapArea />
+                </ErrorBoundary>
               </div>
               
               <div className="space-y-6">
-                <GlitchSection />
+                <ErrorBoundary componentName="GlitchSection">
+                  <GlitchSection />
+                </ErrorBoundary>
               </div>
             </div>
             

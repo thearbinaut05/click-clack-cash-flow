@@ -40,12 +40,6 @@ const AutonomousAgentDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
 
-  useEffect(() => {
-    loadMetrics();
-    const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
-  }, [loadMetrics]);
-
   const loadMetrics = useCallback(async () => {
     try {
       const data = await agentService.getPerformanceMetrics();
@@ -53,8 +47,30 @@ const AutonomousAgentDashboard: React.FC = () => {
       setIsRunning(data?.isRunning || false);
     } catch (error) {
       console.error('Error loading metrics:', error);
+      // Set fallback data when service fails
+      setMetrics({
+        totalRevenue: 0,
+        dailyRevenue: 0,
+        weeklyRevenue: 0,
+        monthlyRevenue: 0,
+        activeAgents: 0,
+        completedTasks: 0,
+        successRate: 0,
+        performance: {
+          averageResponseTime: 0,
+          uptimePercentage: 0,
+          tasksPerHour: 0,
+        },
+        status: 'offline'
+      });
     }
   }, [agentService]);
+
+  useEffect(() => {
+    loadMetrics();
+    const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, [loadMetrics]);
 
   const handleStartStop = async () => {
     setIsLoading(true);

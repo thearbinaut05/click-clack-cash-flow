@@ -31,6 +31,22 @@ const StatsSection: React.FC = () => {
   const [optimizationScore, setOptimizationScore] = useState(0);
   const [isOptimizing, setIsOptimizing] = useState(false);
   
+  const runOptimization = useCallback(async () => {
+    setIsOptimizing(true);
+    try {
+      const optimizationResult = await adService.optimizeAdStrategy();
+      setRecommendedCategory(optimizationResult.recommendedCategory);
+      setOptimizationScore(optimizationResult.confidence);
+    } catch (error) {
+      console.error("Optimization error:", error);
+      // Set fallback values when optimization fails
+      setRecommendedCategory('gaming');
+      setOptimizationScore(0);
+    } finally {
+      setIsOptimizing(false);
+    }
+  }, [adService]);
+  
   useEffect(() => {
     // Update earnings from service
     setEarnings(adService.getTotalEarnings());
@@ -49,19 +65,6 @@ const StatsSection: React.FC = () => {
     if (adClicks === 0) return '0%';
     return `${Math.round((adConversions / adClicks) * 100)}%`;
   };
-  
-  const runOptimization = useCallback(async () => {
-    setIsOptimizing(true);
-    try {
-      const optimizationResult = await adService.optimizeAdStrategy();
-      setRecommendedCategory(optimizationResult.recommendedCategory);
-      setOptimizationScore(optimizationResult.confidence);
-    } catch (error) {
-      console.error("Optimization error:", error);
-    } finally {
-      setIsOptimizing(false);
-    }
-  }, [adService]);
   
   const getEarningsColor = () => {
     if (earnings > 20) return "text-green-400";
