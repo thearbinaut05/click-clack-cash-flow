@@ -116,7 +116,7 @@ export const ServerConnectionStatus: React.FC = () => {
           </span>
           
           {connection.supabaseHealth?.error && (
-            <span className="text-red-400 text-xs truncate max-w-40" title={connection.supabaseHealth.error}>
+            <span className="text-red-400 text-xs truncate max-w-xs" title={connection.supabaseHealth.error}>
               {connection.supabaseHealth.error}
             </span>
           )}
