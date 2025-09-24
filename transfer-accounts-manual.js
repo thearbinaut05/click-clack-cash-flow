@@ -254,7 +254,7 @@ async function main() {
     if (scanResults.recommended_total > 0) {
       console.log('💳 STRIPE TRANSFER READINESS:');
       console.log(`  ✅ Total USD ready for transfer: $${scanResults.recommended_total.toLocaleString()}`);
-      console.log(`  ✅ Stripe account configured: ${process.env.CONNECTED_ACCOUNT_ID ? 'Yes' : 'No'}`);
+      console.log(`  ✅ Stripe account configured: ${process.env.CONNECTED_ACCOUNT_ID ? 'Yes (' + process.env.CONNECTED_ACCOUNT_ID.slice(-4) + ')' : 'No'}`);
       console.log(`  ✅ API key available: ${process.env.STRIPE_SECRET_KEY ? 'Yes' : 'No'}`);
       
       if (scanResults.recommended_total >= 5.00) {
