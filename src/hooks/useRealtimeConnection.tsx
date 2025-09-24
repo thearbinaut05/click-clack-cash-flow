@@ -33,7 +33,7 @@ export const useRealtimeConnection = () => {
       return channels.get(channelName);
     }
 
-    const channel = supabase.channel(channelName, config);
+    const channel = supabase.channel(channelName, { config: config.config });
     
     channel
       .on('presence', { event: 'sync' }, () => {

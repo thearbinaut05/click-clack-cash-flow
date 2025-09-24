@@ -426,7 +426,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Log the transaction for auditing
       console.log(`Clicker game cashout completed: ID=${transactionId}, Amount=$${cashValue}, Email=${email}, Method=${method}`);
       
-      return transactionId;
+      return String(transactionId || `tx_${Date.now()}`);
     } catch (error) {
       console.error('Payment error:', error);
       throw error instanceof Error ? error : new Error('Payment processing failed. Please try again later.');

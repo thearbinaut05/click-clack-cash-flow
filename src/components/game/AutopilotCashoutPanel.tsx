@@ -47,10 +47,6 @@ export default function AutopilotCashoutPanel() {
   const [recentCashouts, setRecentCashouts] = useState<RecentCashout[]>([]);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadAutopilotStatus();
-  }, [loadAutopilotStatus]);
-
   const loadAutopilotStatus = useCallback(async () => {
     try {
       setStatusLoading(true);
@@ -88,6 +84,10 @@ export default function AutopilotCashoutPanel() {
       setStatusLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    loadAutopilotStatus();
+  }, [loadAutopilotStatus]);
 
   const handleStartAutopilot = async () => {
     if (!config.email) {

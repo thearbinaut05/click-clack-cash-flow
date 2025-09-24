@@ -26,12 +26,16 @@ interface AgentMetrics {
   activeAgents?: number;
   completedTasks?: number;
   successRate?: number;
+  swarms?: number;
+  activeOffers?: number;
+  avgOptimizationImprovement?: number;
   performance?: {
     averageResponseTime?: number;
     uptimePercentage?: number;
     tasksPerHour?: number;
   };
   status?: string;
+  isRunning?: boolean;
 }
 
 const AutonomousAgentDashboard: React.FC = () => {
@@ -39,12 +43,6 @@ const AutonomousAgentDashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-
-  useEffect(() => {
-    loadMetrics();
-    const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
-  }, [loadMetrics]);
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -55,6 +53,12 @@ const AutonomousAgentDashboard: React.FC = () => {
       console.error('Error loading metrics:', error);
     }
   }, [agentService]);
+
+  useEffect(() => {
+    loadMetrics();
+    const interval = setInterval(loadMetrics, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, [loadMetrics]);
 
   const handleStartStop = async () => {
     setIsLoading(true);

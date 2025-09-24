@@ -21,6 +21,10 @@ interface MarketAgentConfig {
   id: string;
   name: string;
   capabilities?: string[];
+  priority?: number;
+  maxConcurrentTasks?: number;
+  performanceThreshold?: number;
+  riskTolerance?: number;
   [key: string]: unknown;
 }
 
@@ -33,6 +37,10 @@ export class MarketAgent extends BaseAgent {
       ...config,
       type: 'market',
       capabilities: ['market_analysis', 'trend_detection', 'arbitrage_detection', 'competitive_intelligence'],
+      priority: config.priority || 5,
+      maxConcurrentTasks: config.maxConcurrentTasks || 10,
+      performanceThreshold: config.performanceThreshold || 0.8,
+      riskTolerance: config.riskTolerance || 0.5,
     });
   }
 

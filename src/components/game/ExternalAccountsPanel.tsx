@@ -28,10 +28,6 @@ export default function ExternalAccountsPanel() {
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadExternalAccounts();
-  }, [loadExternalAccounts]);
-
   const loadExternalAccounts = useCallback(async () => {
     try {
       setLoading(true);
@@ -97,6 +93,10 @@ export default function ExternalAccountsPanel() {
       setLoading(false);
     }
   }, [toast]);
+
+  useEffect(() => {
+    loadExternalAccounts();
+  }, [loadExternalAccounts]);
 
   const handleTransfer = async () => {
     if (!selectedAccount || !transferAmount) return;

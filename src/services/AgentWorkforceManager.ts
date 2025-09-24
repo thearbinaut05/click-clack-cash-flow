@@ -474,7 +474,7 @@ export class AgentWorkforceManager {
   private extractRevenueFromResult(result: Record<string, unknown>): number {
     // Extract revenue value from task result
     if (result && typeof result === 'object') {
-      return result.revenue || result.earnings || result.value || 0;
+      return Number(result.revenue) || Number(result.earnings) || Number(result.value) || 0;
     }
     return 0;
   }

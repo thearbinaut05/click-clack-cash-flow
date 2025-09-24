@@ -22,6 +22,10 @@ interface RevenueAgentConfig {
   id: string;
   name: string;
   capabilities?: string[];
+  priority?: number;
+  maxConcurrentTasks?: number;
+  performanceThreshold?: number;
+  riskTolerance?: number;
   [key: string]: unknown;
 }
 
@@ -34,6 +38,10 @@ export class RevenueAgent extends BaseAgent {
       ...config,
       type: 'revenue',
       capabilities: ['revenue_optimization', 'stream_analysis', 'pricing_strategy', 'conversion_optimization'],
+      priority: config.priority || 5,
+      maxConcurrentTasks: config.maxConcurrentTasks || 15,
+      performanceThreshold: config.performanceThreshold || 0.8,
+      riskTolerance: config.riskTolerance || 0.3,
     });
   }
 
@@ -78,12 +86,13 @@ export class RevenueAgent extends BaseAgent {
     const { streamId, currentMetrics, marketData } = payload;
 
     // Analyze current performance
-    const currentRevenue = currentMetrics.totalRevenue || 0;
-    const currentConversion = currentMetrics.conversionRate || 0;
-    const currentAOV = currentMetrics.averageOrderValue || 0;
+    const metrics = currentMetrics as any;
+    const currentRevenue = metrics?.totalRevenue || 0;
+    const currentConversion = metrics?.conversionRate || 0;
+    const currentAOV = metrics?.averageOrderValue || 0;
 
     // Get market benchmarks
-    const marketBenchmarks = await this.getMarketBenchmarks(payload.category);
+    const marketBenchmarks = await this.getMarketBenchmarks(String(payload.category || 'general'));
 
     // Calculate optimization opportunities
     const opportunities = [];
@@ -92,7 +101,7 @@ export class RevenueAgent extends BaseAgent {
     if (currentAOV < marketBenchmarks.averageAOV * 0.9) {
       opportunities.push({
         type: 'price_optimization',
-        potential: (marketBenchmarks.averageAOV - currentAOV) * currentMetrics.transactionCount * 0.3,
+        potential: (marketBenchmarks.averageAOV - currentAOV) * (metrics?.transactionCount || 0) * 0.3,
         confidence: 0.85,
         implementation: 'gradual_price_increase'
       });
@@ -112,7 +121,7 @@ export class RevenueAgent extends BaseAgent {
     const bestOpportunity = opportunities.sort((a, b) => b.potential - a.potential)[0];
 
     if (bestOpportunity) {
-      await this.implementOptimization(streamId, bestOpportunity);
+      await this.implementOptimization(String(streamId), bestOpportunity);
 
       this.optimizationHistory.push({
         timestamp: new Date(),
@@ -169,23 +178,23 @@ export class RevenueAgent extends BaseAgent {
     const { productId, currentPrice, marketData, competitorPrices } = payload;
 
     // Dynamic pricing algorithm
-    const optimalPrice = this.calculateOptimalPrice(currentPrice, marketData, competitorPrices);
+    const optimalPrice = this.calculateOptimalPrice(Number(currentPrice), marketData, competitorPrices as number[]);
 
     // A/B testing setup
     const testGroups = [
-      { name: 'control', price: currentPrice },
+      { name: 'control', price: Number(currentPrice) },
       { name: 'test_a', price: optimalPrice * 0.95 },
       { name: 'test_b', price: optimalPrice * 1.05 },
       { name: 'optimal', price: optimalPrice }
     ];
 
     // Implement price testing
-    await this.setupPriceTesting(productId, testGroups);
+    await this.setupPriceTesting(String(productId), testGroups);
 
     return {
       optimalPrice,
       testGroups,
-      expectedRevenueIncrease: this.calculateExpectedRevenueIncrease(currentPrice, optimalPrice, marketData),
+      expectedRevenueIncrease: this.calculateExpectedRevenueIncrease(Number(currentPrice), optimalPrice, marketData),
       confidence: 0.78
     };
   }
