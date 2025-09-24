@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Wifi, WifiOff, Activity } from 'lucide-react';
+import { Wifi, WifiOff, Activity, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import SupabaseHealthService, { SupabaseHealth } from '@/services/SupabaseHealthService';
 
 interface ServerConnection {
   isConnected: boolean;
@@ -9,6 +11,7 @@ interface ServerConnection {
   lastSync: Date;
   activeConnections: number;
   status: 'connected' | 'connecting' | 'disconnected' | 'error';
+  supabaseHealth?: SupabaseHealth;
 }
 
 export const ServerConnectionStatus: React.FC = () => {
@@ -20,47 +23,30 @@ export const ServerConnectionStatus: React.FC = () => {
     status: 'connecting'
   });
 
+  const [healthService] = useState(() => SupabaseHealthService.getInstance());
+
   useEffect(() => {
-    // Simulate real-time server connection monitoring
-    const checkConnection = async () => {
-      try {
-        const start = Date.now();
-        
-        // Ping server endpoint
-        const response = await fetch('/api/health', {
-          method: 'HEAD',
-          cache: 'no-cache'
-        });
-        
-        const latency = Date.now() - start;
-        
-        setConnection(prev => ({
-          ...prev,
-          isConnected: response.ok,
-          latency,
-          lastSync: new Date(),
-          status: response.ok ? 'connected' : 'error',
-          activeConnections: prev.activeConnections + (response.ok ? 1 : 0)
-        }));
-      } catch (error) {
-        setConnection(prev => ({
-          ...prev,
-          isConnected: false,
-          status: 'disconnected',
-          lastSync: new Date()
-        }));
-      }
-    };
+    // Subscribe to Supabase health updates
+    const unsubscribe = healthService.subscribe((health) => {
+      setConnection(prev => ({
+        ...prev,
+        isConnected: health.isConnected,
+        latency: health.latency,
+        lastSync: health.lastCheck,
+        status: health.isHealthy ? 'connected' : health.isConnected ? 'error' : 'disconnected',
+        supabaseHealth: health,
+        activeConnections: health.isConnected ? 1 : 0
+      }));
+    });
 
-    // Initial check
-    checkConnection();
+    // Cleanup subscription on unmount
+    return unsubscribe;
+  }, [healthService]);
 
-    // Check every 5 seconds
-    const interval = setInterval(checkConnection, 5000);
-
-    // Cleanup
-    return () => clearInterval(interval);
-  }, []);
+  const handleForceCheck = async () => {
+    setConnection(prev => ({ ...prev, status: 'connecting' }));
+    await healthService.forceCheck();
+  };
 
   const getStatusColor = () => {
     switch (connection.status) {
@@ -74,9 +60,9 @@ export const ServerConnectionStatus: React.FC = () => {
 
   const getStatusText = () => {
     switch (connection.status) {
-      case 'connected': return 'Connected';
+      case 'connected': return 'Supabase Connected';
       case 'connecting': return 'Connecting...';
-      case 'disconnected': return 'Disconnected';
+      case 'disconnected': return 'Supabase Offline';
       case 'error': return 'Connection Error';
       default: return 'Unknown';
     }
@@ -112,9 +98,28 @@ export const ServerConnectionStatus: React.FC = () => {
             </>
           )}
           
+          {!connection.isConnected && (
+            <Button
+              onClick={handleForceCheck}
+              variant="outline"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              disabled={connection.status === 'connecting'}
+            >
+              <RefreshCw className={`h-3 w-3 mr-1 ${connection.status === 'connecting' ? 'animate-spin' : ''}`} />
+              Retry
+            </Button>
+          )}
+          
           <span>
             Last sync: {connection.lastSync.toLocaleTimeString()}
           </span>
+          
+          {connection.supabaseHealth?.error && (
+            <span className="text-red-400 text-xs truncate max-w-40" title={connection.supabaseHealth.error}>
+              {connection.supabaseHealth.error}
+            </span>
+          )}
         </div>
       </div>
     </Card>
