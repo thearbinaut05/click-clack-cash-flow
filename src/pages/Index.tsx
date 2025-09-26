@@ -10,6 +10,8 @@ import AutonomousAgentDashboard from '@/components/game/AutonomousAgentDashboard
 import AutonomousRevenueDisplay from '@/components/game/AutonomousRevenueDisplay';
 import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
 import AutopilotCashoutPanel from "@/components/game/AutopilotCashoutPanel";
+import FundAccessDashboard from "@/components/game/FundAccessDashboard";
+import RevenueOptimizationPanel from "@/components/game/RevenueOptimizationPanel";
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
@@ -95,6 +97,12 @@ const Index = () => {
                 Autonomous AI-Powered Revenue Generation System
               </p>
             </div>
+            
+            {/* Fund Access Dashboard - Priority #1 */}
+            <FundAccessDashboard />
+            
+            {/* Revenue Optimization Panel */}
+            <RevenueOptimizationPanel />
             
             {/* Revenue & External Accounts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
