@@ -125,7 +125,8 @@ class AdMonetizationService {
       return await response.json();
     } catch (error) {
       console.error('Error fetching offers:', error);
-      return [];
+      // Return default offers on any error to prevent component failures
+      return this.getDefaultOffers();
     }
   }
   
