@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.stripe-payment-processor]
 verify_jwt = false
+
+[functions.financial-failsafe-system]
+verify_jwt = false
