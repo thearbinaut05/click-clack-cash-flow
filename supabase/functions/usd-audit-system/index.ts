@@ -80,7 +80,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('USD Audit System error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -125,7 +125,7 @@ async function handleComprehensiveAudit(supabase: any, stripe: any, deep_audit: 
         negative_amounts: 0,
         null_amounts: 0,
         verification_status: 'FAILED',
-        issues: [`Error accessing table: ${error.message}`]
+        issues: [`Error accessing table: ${error instanceof Error ? error.message : 'Unknown error'}`]
       });
     }
   }
@@ -345,7 +345,7 @@ async function handleStripeReconciliation(supabase: any, stripe: any): Promise<R
       reconciliationResults.push({
         transaction_id: transaction.id,
         stripe_transfer_id: transaction.provider_transfer_id,
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         status: 'ERROR'
       });
     }
@@ -417,7 +417,7 @@ async function handleFixDiscrepancies(supabase: any, fixes: any[]): Promise<Resp
         id: fix.id,
         field: fix.field,
         status: 'FAILED',
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   }

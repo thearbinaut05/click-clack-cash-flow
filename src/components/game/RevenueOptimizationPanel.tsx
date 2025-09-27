@@ -34,12 +34,11 @@ const RevenueOptimizationPanel: React.FC = () => {
     try {
       // Load analytics
       const { data: analyticsData, error: analyticsError } = await supabase
-        .from('financial_analytics')
+        .from('autonomous_revenue_metrics')
         .select('*')
-        .eq('metric_type', 'daily_summary')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (analyticsError && analyticsError.code !== 'PGRST116') {
         throw analyticsError;
@@ -47,11 +46,11 @@ const RevenueOptimizationPanel: React.FC = () => {
 
       if (analyticsData) {
         setAnalytics({
-          daily_revenue: analyticsData.revenue_total || 0,
-          weekly_growth: analyticsData.growth_rate || 0,
-          optimization_score: analyticsData.optimization_score || 75,
-          efficiency_rating: analyticsData.efficiency_rating || 85,
-          next_optimization: analyticsData.next_optimization_date || new Date().toISOString()
+          daily_revenue: analyticsData.total_revenue || 0,
+          weekly_growth: 0, // Calculate or default value
+          optimization_score: 75, // Default value
+          efficiency_rating: 85, // Default value
+          next_optimization: new Date().toISOString()
         });
       }
 

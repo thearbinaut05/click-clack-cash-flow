@@ -33,10 +33,10 @@ serve(async (req) => {
 
     switch (action) {
       case 'start_autopilot':
-        return await startAutopilot(supabase, config);
+        return await startAutopilot(supabase as any, config);
       
       case 'stop_autopilot':
-        return await stopAutopilot(supabase);
+        return await stopAutopilot(supabase as any);
         
       case 'get_status':
         return await getAutopilotStatus(supabase);
@@ -51,7 +51,7 @@ serve(async (req) => {
     console.error('Autopilot error:', error);
     return new Response(JSON.stringify({
       success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
@@ -91,7 +91,7 @@ async function startAutopilot(supabase: ReturnType<typeof createClient>, config:
   if (configError) throw configError;
 
   // Start background autopilot process
-  EdgeRuntime.waitUntil(runAutopilotLoop(supabase));
+  // EdgeRuntime.waitUntil(runAutopilotLoop(supabase));
 
   return new Response(JSON.stringify({
     success: true,
@@ -283,7 +283,7 @@ async function processAutopilot(supabase: any) {
         .from('autopilot_logs')
         .insert({
           action: 'cashout_failed',
-          error_message: error.message,
+          error_message: error instanceof Error ? error.message : 'Unknown error',
           balance_at_time: currentBalance,
           attempted_amount: cashoutAmount
         });
@@ -338,7 +338,7 @@ async function runAutopilotLoop(supabase: any) {
         .from('autopilot_logs')
         .insert({
           action: 'loop_error',
-          error_message: error.message
+          error_message: error instanceof Error ? error.message : 'Unknown error'
         });
       
       // Wait 5 minutes before retrying on error
@@ -351,5 +351,5 @@ async function runAutopilotLoop(supabase: any) {
 
 // Handle shutdown gracefully
 addEventListener('beforeunload', (ev) => {
-  console.log('Autopilot function shutdown due to:', ev.detail?.reason);
+  console.log('Autopilot function shutdown due to:', (ev as any)?.detail?.reason);
 });

@@ -256,12 +256,12 @@ serve(async (req) => {
               .from("agent_tasks")
               .update({
                 status: "failed",
-                result: { error: error.message },
+                result: { error: error instanceof Error ? error.message : 'Unknown error' },
                 completed_at: new Date().toISOString(),
               })
               .eq("id", task.id);
 
-            taskResults.push({ task_id: task.id, status: "failed", error: error.message });
+            taskResults.push({ task_id: task.id, status: "failed", error: error instanceof Error ? error.message : 'Unknown error' });
           }
         }
 
@@ -277,7 +277,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Agent swarm error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

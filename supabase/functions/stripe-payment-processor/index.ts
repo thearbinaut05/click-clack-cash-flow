@@ -122,7 +122,7 @@ serve(async (req) => {
             auditResults.push({
               transaction_id: transaction.id,
               stripe_verified: false,
-              error: error.message,
+              error: error instanceof Error ? error.message : 'Unknown error',
             });
           }
         }
@@ -242,7 +242,7 @@ serve(async (req) => {
             processedResults.push({
               payment_intent_id: transaction.stripe_payment_id,
               status: "failed",
-              error: error.message
+              error: error instanceof Error ? error.message : 'Unknown error'
             });
           }
         }
@@ -264,7 +264,7 @@ serve(async (req) => {
   } catch (error) {
     console.error("Stripe processor error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

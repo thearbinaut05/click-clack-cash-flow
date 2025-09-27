@@ -80,11 +80,11 @@ serve(async (req) => {
 
     switch (endpoint) {
       case 'summary':
-        return handleSummary(supabase, format);
+        return handleSummary(supabase as any, format);
       case 'detailed':
-        return handleDetailed(supabase, format);
+        return handleDetailed(supabase as any, format);
       case 'verification':
-        return handleVerification(supabase, format);
+        return handleVerification(supabase as any, format);
       default:
         return new Response(
           JSON.stringify({ 
@@ -102,7 +102,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('USD External API error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -137,15 +137,15 @@ async function handleSummary(supabase: ReturnType<typeof createClient>, format: 
     .select('amount')
     .neq('status', 'completed');
 
-  const totalRevenue = revenueData?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
-  const totalTransfers = transferData?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
-  const pendingTransactions = pendingData?.reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
+  const totalRevenue = revenueData?.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0) || 0;
+  const totalTransfers = transferData?.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0) || 0;
+  const pendingTransactions = pendingData?.reduce((sum: number, item: any) => sum + (Number(item.amount) || 0), 0) || 0;
   const applicationBalance = balanceData?.balance_amount || 0;
 
   const summary: USDSummary = {
     total_revenue: Number(totalRevenue.toFixed(2)),
     total_transfers: Number(totalTransfers.toFixed(2)),
-    application_balance: Number(applicationBalance.toFixed(2)),
+    application_balance: Number((applicationBalance as any)?.balance_amount || 0),
     pending_transactions: Number(pendingTransactions.toFixed(2)),
     verified_balance: Number((totalRevenue - totalTransfers).toFixed(2)),
     last_updated: new Date().toISOString()
@@ -203,21 +203,31 @@ async function handleDetailed(supabase: ReturnType<typeof createClient>, format:
   const detailedReport: USDDetailedReport = {
     summary,
     revenue_breakdown: {
-      autonomous_revenue_transactions: revenueTransactions || [],
-      autonomous_revenue_transfers: transfers || []
+      autonomous_revenue_transactions: (revenueTransactions || []).map((item: any) => ({
+        id: String(item.id || ''),
+        amount: Number(item.amount || 0),
+        status: String(item.status || ''),
+        created_at: String(item.created_at || '')
+      })),
+      autonomous_revenue_transfers: (transfers || []).map((item: any) => ({
+        id: String(item.id || ''),
+        amount: Number(item.amount || 0),
+        status: String(item.status || ''),
+        created_at: String(item.created_at || '')
+      }))
     },
-    agent_revenue: (agents || []).map(agent => ({
-      id: agent.id,
-      name: agent.name,
-      revenue_generated: Number((agent.revenue_generated || 0).toFixed(2)),
-      total_cost: Number((agent.total_cost || 0).toFixed(2)),
-      net_profit: Number(((agent.revenue_generated || 0) - (agent.total_cost || 0)).toFixed(2))
+    agent_revenue: (agents || []).map((agent: any) => ({
+      id: String(agent.id || ''),
+      name: String(agent.name || ''),
+      revenue_generated: Number(agent.revenue_generated || 0),
+      total_cost: Number(agent.total_cost || 0),
+      net_profit: Number(agent.revenue_generated || 0) - Number(agent.total_cost || 0)
     })),
-    market_offers: (offers || []).map(offer => ({
-      id: offer.id,
-      name: offer.name,
-      payout_rate: Number((offer.payout_rate || 0).toFixed(2)),
-      performance_score: Number((offer.performance_score || 0).toFixed(2))
+    market_offers: (offers || []).map((offer: any) => ({
+      id: String(offer.id || ''),
+      name: String(offer.name || ''),
+      payout_rate: Number(offer.payout_rate || 0),
+      performance_score: Number(offer.performance_score || 0)
     }))
   };
 
@@ -255,21 +265,21 @@ async function handleVerification(supabase: ReturnType<typeof createClient>, for
     .from('autonomous_revenue_transfers')
     .select('amount, status');
 
-  const totalCompletedRevenue = allRevenue?.filter(r => r.status === 'completed')
-    .reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
+  const totalCompletedRevenue = allRevenue?.filter((r: any) => r.status === 'completed')
+    .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) || 0;
   
-  const totalCompletedTransfers = allTransfers?.filter(t => t.status === 'completed')
-    .reduce((sum, item) => sum + (item.amount || 0), 0) || 0;
+  const totalCompletedTransfers = allTransfers?.filter((t: any) => t.status === 'completed')
+    .reduce((sum: number, item: any) => sum + Number(item.amount || 0), 0) || 0;
 
   const calculatedBalance = totalCompletedRevenue - totalCompletedTransfers;
   const actualBalance = balanceData?.balance_amount || 0;
-  const balanceDiscrepancy = Math.abs(calculatedBalance - actualBalance);
+  const balanceDiscrepancy = Math.abs(calculatedBalance - Number(actualBalance as any || 0));
 
   verificationResults.push({
     check: 'application_balance_consistency',
     status: balanceDiscrepancy < 0.01 ? 'PASSED' : 'FAILED',
     calculated_balance: Number(calculatedBalance.toFixed(2)),
-    actual_balance: Number(actualBalance.toFixed(2)),
+    actual_balance: Number(actualBalance as any || 0),
     discrepancy: Number(balanceDiscrepancy.toFixed(2)),
     tolerance: 0.01
   });
@@ -280,17 +290,17 @@ async function handleVerification(supabase: ReturnType<typeof createClient>, for
     .select('id, name, revenue_generated, total_cost, hourly_cost');
 
   for (const agent of agents || []) {
-    const revenueConsistent = (agent.revenue_generated || 0) >= 0;
-    const costConsistent = (agent.total_cost || 0) >= 0;
-    const profitCalculation = (agent.revenue_generated || 0) - (agent.total_cost || 0);
+    const revenueConsistent = Number(agent.revenue_generated || 0) >= 0;
+    const costConsistent = Number(agent.total_cost || 0) >= 0;
+    const profitCalculation = Number(agent.revenue_generated || 0) - Number(agent.total_cost || 0);
     
     verificationResults.push({
       check: `agent_${agent.id}_revenue_consistency`,
       agent_name: agent.name,
       status: (revenueConsistent && costConsistent) ? 'PASSED' : 'FAILED',
-      revenue_generated: Number((agent.revenue_generated || 0).toFixed(2)),
-      total_cost: Number((agent.total_cost || 0).toFixed(2)),
-      calculated_profit: Number(profitCalculation.toFixed(2))
+      revenue_generated: Number(agent.revenue_generated || 0),
+      total_cost: Number(agent.total_cost || 0),
+      calculated_profit: Number(profitCalculation)
     });
   }
 
@@ -356,12 +366,12 @@ function convertDetailedToCSV(report: USDDetailedReport): string {
 function convertVerificationToCSV(verification: Record<string, unknown>): string {
   let csv = 'Check,Status,Details\n';
   
-  for (const result of verification.results) {
+  for (const result of (verification.results as any[]) || []) {
     const details = Object.entries(result)
       .filter(([key]) => key !== 'check' && key !== 'status')
       .map(([key, value]) => `${key}:${value}`)
       .join(';');
-    csv += `${result.check},${result.status},"${details}"\n`;
+    csv += `${(result as any).check},${(result as any).status},"${details}"\n`;
   }
   
   return csv;

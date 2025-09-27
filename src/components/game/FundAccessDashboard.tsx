@@ -34,11 +34,11 @@ const FundAccessDashboard: React.FC = () => {
   const loadFundData = async () => {
     try {
       const { data, error } = await supabase
-        .rpc('calculate_real_time_usd_balance');
+        .rpc('check_balance');
       
       if (error) throw error;
       
-      setFundData(data || []);
+      setFundData(data ? [{ source_system: 'balance', available_usd: Number((data as any)?.balance_amount || 0), pending_usd: 0, total_usd: Number((data as any)?.balance_amount || 0), last_updated: new Date().toISOString() }] : []);
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Error loading fund data:', error);
