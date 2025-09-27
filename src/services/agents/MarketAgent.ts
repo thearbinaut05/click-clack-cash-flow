@@ -179,7 +179,7 @@ export class MarketAgent extends BaseAgent {
     }
   }
 
-  private identifyTopCategories(offers: any[]): any[] {
+  private identifyTopCategories(offers: Record<string, unknown>[]): Record<string, unknown>[] {
     const categoryPerformance = new Map();
     offers.forEach(offer => {
       const category = offer.category || 'general';
@@ -201,7 +201,7 @@ export class MarketAgent extends BaseAgent {
       .slice(0, 5);
   }
 
-  private findEmergingOpportunities(offers: any[]): any[] {
+  private findEmergingOpportunities(offers: Record<string, unknown>[]): Record<string, unknown>[] {
     // Mock emerging opportunities detection
     return offers
       .filter(offer => offer.performance_score > 0.8)
@@ -214,7 +214,7 @@ export class MarketAgent extends BaseAgent {
       }));
   }
 
-  private calculateMarketVolatility(offers: any[]): number {
+  private calculateMarketVolatility(offers: Record<string, unknown>[]): number {
     if (offers.length === 0) return 0;
     const scores = offers.map(o => o.performance_score || 0);
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
@@ -222,7 +222,7 @@ export class MarketAgent extends BaseAgent {
     return Math.sqrt(variance);
   }
 
-  private generateRecommendations(offers: any[]): string[] {
+  private generateRecommendations(offers: Record<string, unknown>[]): string[] {
     const recommendations = [];
     const topOffers = offers.slice(0, 5);
     

@@ -89,7 +89,7 @@ serve(async (req) => {
   }
 });
 
-async function handleComprehensiveAudit(supabase: any, stripe: any, deep_audit: boolean): Promise<Response> {
+async function handleComprehensiveAudit(supabase: ReturnType<typeof createClient>, stripe: Stripe | null, deep_audit: boolean): Promise<Response> {
   console.log('Starting comprehensive USD audit...');
   
   const auditResults: AuditResult[] = [];

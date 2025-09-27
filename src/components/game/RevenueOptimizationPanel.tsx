@@ -66,8 +66,8 @@ const RevenueOptimizationPanel: React.FC = () => {
 
       const metrics: OptimizationMetric[] = (optimizationData || []).map(opt => ({
         category: opt.optimization_type,
-        current_performance: (opt.performance_metrics as any)?.current_rate || Math.random() * 100,
-        optimization_potential: (opt.performance_metrics as any)?.potential_improvement || Math.random() * 30,
+        current_performance: (opt.performance_metrics as Record<string, unknown>)?.current_rate as number || Math.random() * 100,
+        optimization_potential: (opt.performance_metrics as Record<string, unknown>)?.potential_improvement as number || Math.random() * 30,
         last_optimized: opt.applied_at || opt.created_at,
         status: opt.status as 'active' | 'pending' | 'optimized'
       }));

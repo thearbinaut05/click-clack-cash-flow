@@ -125,7 +125,7 @@ async function stopAutopilot(supabase: ReturnType<typeof createClient>) {
   });
 }
 
-async function getAutopilotStatus(supabase: any) {
+async function getAutopilotStatus(supabase: ReturnType<typeof createClient>) {
   const { data: config, error } = await supabase
     .from('autopilot_config')
     .select('*')
@@ -154,7 +154,7 @@ async function getAutopilotStatus(supabase: any) {
   });
 }
 
-async function processAutopilot(supabase: any) {
+async function processAutopilot(supabase: ReturnType<typeof createClient>) {
   console.log('Processing autopilot cashout check');
   
   // Get autopilot configuration
@@ -305,7 +305,7 @@ async function processAutopilot(supabase: any) {
   }
 }
 
-async function runAutopilotLoop(supabase: any) {
+async function runAutopilotLoop(supabase: ReturnType<typeof createClient>) {
   console.log('Starting autopilot background loop');
   
   while (true) {
