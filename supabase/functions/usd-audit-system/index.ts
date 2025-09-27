@@ -172,7 +172,7 @@ async function handleComprehensiveAudit(supabase: ReturnType<typeof createClient
   });
 }
 
-async function auditUSDField(supabase: any, tableName: string, fieldName: string, deepAudit: boolean): Promise<AuditResult> {
+async function auditUSDField(supabase: ReturnType<typeof createClient>, tableName: string, fieldName: string, deepAudit: boolean): Promise<AuditResult> {
   console.log(`Auditing ${tableName}.${fieldName}...`);
   
   const issues: string[] = [];
@@ -254,11 +254,11 @@ async function auditUSDField(supabase: any, tableName: string, fieldName: string
   };
 }
 
-async function handleConversionVerification(supabase: any): Promise<Response> {
+async function handleConversionVerification(supabase: ReturnType<typeof createClient>): Promise<Response> {
   console.log('Verifying coin-to-USD conversions...');
   
   const expectedRate = 100; // 100 coins = 1 USD
-  const discrepancies: any[] = [];
+  const discrepancies: Record<string, unknown>[] = [];
 
   // Check cashout records in autonomous_revenue_transfers
   const { data: transfers } = await supabase
@@ -304,7 +304,7 @@ async function handleConversionVerification(supabase: any): Promise<Response> {
   });
 }
 
-async function handleStripeReconciliation(supabase: any, stripe: any): Promise<Response> {
+async function handleStripeReconciliation(supabase: ReturnType<typeof createClient>, stripe: Stripe | null): Promise<Response> {
   if (!stripe) {
     return new Response(
       JSON.stringify({ error: 'Stripe not configured' }),
@@ -366,7 +366,7 @@ async function handleStripeReconciliation(supabase: any, stripe: any): Promise<R
   });
 }
 
-async function handleFixDiscrepancies(supabase: any, fixes: any[]): Promise<Response> {
+async function handleFixDiscrepancies(supabase: any, fixes: Record<string, unknown>[]): Promise<Response> {
   console.log('Applying fixes to discrepancies...');
   
   const fixResults = [];
