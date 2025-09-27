@@ -117,7 +117,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       let successMessage = `You've successfully cashed out $${cashValue} to ${values.email}!`;
       
       if (values.method === CASHOUT_METHODS.VIRTUAL_CARD) {
-        const cardDetails = result.details as any;
+        const cardDetails = result.details as Record<string, unknown>;
         successMessage = `Virtual card created with ${cardDetails?.cardDetails?.last4 ? 'ending in ' + cardDetails.cardDetails.last4 : ''}! Details sent to ${values.email}`;
       } else if (values.method === CASHOUT_METHODS.BANK_CARD) {
         successMessage = `$${cashValue} will be transferred to your bank card. Details sent to ${values.email}`;

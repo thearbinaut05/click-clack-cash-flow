@@ -86,10 +86,10 @@ export class RevenueAgent extends BaseAgent {
     const { streamId, currentMetrics, marketData } = payload;
 
     // Analyze current performance
-    const metrics = currentMetrics as any;
-    const currentRevenue = metrics?.totalRevenue || 0;
-    const currentConversion = metrics?.conversionRate || 0;
-    const currentAOV = metrics?.averageOrderValue || 0;
+    const metrics = currentMetrics as Record<string, unknown>;
+    const currentRevenue = (metrics?.totalRevenue as number) || 0;
+    const currentConversion = (metrics?.conversionRate as number) || 0;
+    const currentAOV = (metrics?.averageOrderValue as number) || 0;
 
     // Get market benchmarks
     const marketBenchmarks = await this.getMarketBenchmarks(String(payload.category || 'general'));
@@ -101,7 +101,7 @@ export class RevenueAgent extends BaseAgent {
     if (currentAOV < marketBenchmarks.averageAOV * 0.9) {
       opportunities.push({
         type: 'price_optimization',
-        potential: (marketBenchmarks.averageAOV - currentAOV) * (metrics?.transactionCount || 0) * 0.3,
+        potential: (marketBenchmarks.averageAOV - currentAOV) * ((metrics?.transactionCount as number) || 0) * 0.3,
         confidence: 0.85,
         implementation: 'gradual_price_increase'
       });
@@ -199,11 +199,11 @@ export class RevenueAgent extends BaseAgent {
     };
   }
 
-  private async maximizeROI(payload: any): Promise<any> {
+  private async maximizeROI(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
     const { campaigns, budget, targetROI } = payload;
 
     // Calculate current ROI for each campaign
-    const campaignAnalysis = campaigns.map((campaign: any) => ({
+    const campaignAnalysis = campaigns.map((campaign: Record<string, unknown>) => ({
       id: campaign.id,
       currentROI: campaign.revenue / campaign.cost,
       performance: campaign.performance,
@@ -225,7 +225,7 @@ export class RevenueAgent extends BaseAgent {
     };
   }
 
-  private async getMarketBenchmarks(category: string): Promise<any> {
+  private async getMarketBenchmarks(category: string): Promise<Record<string, unknown>> {
     // In production, this would fetch real market data
     const benchmarks = {
       ecommerce: { averageAOV: 85, averageConversion: 0.032 },
@@ -237,12 +237,12 @@ export class RevenueAgent extends BaseAgent {
     return benchmarks[category as keyof typeof benchmarks] || benchmarks.ecommerce;
   }
 
-  private async implementOptimization(streamId: string, opportunity: any): Promise<void> {
+  private async implementOptimization(streamId: string, opportunity: Record<string, unknown>): Promise<void> {
     // Implementation logic would go here
     console.log(`Implementing ${opportunity.type} for stream ${streamId}`);
   }
 
-  private calculateStageConversion(stageData: any): number {
+  private calculateStageConversion(stageData: Record<string, unknown>): number {
     const visitors = stageData.visitors || 0;
     const conversions = stageData.conversions || 0;
     return visitors > 0 ? conversions / visitors : 0;
@@ -261,7 +261,7 @@ export class RevenueAgent extends BaseAgent {
     return Math.max(0, benchmark - conversion);
   }
 
-  private generateFunnelRecommendations(bottlenecks: any[]): string[] {
+  private generateFunnelRecommendations(bottlenecks: Record<string, unknown>[]): string[] {
     const recommendations = [];
 
     for (const bottleneck of bottlenecks) {
@@ -287,7 +287,7 @@ export class RevenueAgent extends BaseAgent {
     return recommendations;
   }
 
-  private calculateOverallConversion(funnelData: any): number {
+  private calculateOverallConversion(funnelData: Record<string, unknown>): number {
     const firstStage = funnelData.awareness || {};
     const lastStage = funnelData.retention || funnelData.purchase || {};
 
@@ -297,7 +297,7 @@ export class RevenueAgent extends BaseAgent {
     return firstVisitors > 0 ? lastConversions / firstVisitors : 0;
   }
 
-  private calculateOptimalPrice(currentPrice: number, marketData: any, competitorPrices: number[]): number {
+  private calculateOptimalPrice(currentPrice: number, marketData: Record<string, unknown>, competitorPrices: number[]): number {
     // Price optimization algorithm
     const avgCompetitorPrice = competitorPrices.reduce((sum, price) => sum + price, 0) / competitorPrices.length;
     const marketDemand = marketData.demand || 1;
@@ -313,35 +313,35 @@ export class RevenueAgent extends BaseAgent {
     return Math.max(minPrice, Math.min(maxPrice, optimalPrice));
   }
 
-  private async setupPriceTesting(productId: string, testGroups: any[]): Promise<void> {
+  private async setupPriceTesting(productId: string, testGroups: Record<string, unknown>[]): Promise<void> {
     // Implementation for A/B testing setup
     console.log(`Setting up price testing for product ${productId}`);
   }
 
-  private calculateExpectedRevenueIncrease(currentPrice: number, optimalPrice: number, marketData: any): number {
+  private calculateExpectedRevenueIncrease(currentPrice: number, optimalPrice: number, marketData: Record<string, unknown>): number {
     const priceChange = (optimalPrice - currentPrice) / currentPrice;
     const estimatedDemandChange = priceChange * (marketData.priceElasticity || -1.5);
     return Math.abs(priceChange * (1 + estimatedDemandChange));
   }
 
-  private calculateROIOptimizationPotential(campaign: any): number {
+  private calculateROIOptimizationPotential(campaign: Record<string, unknown>): number {
     const currentROI = campaign.revenue / campaign.cost;
     const potentialROI = currentROI * 1.5; // Assume 50% improvement potential
     return potentialROI - currentROI;
   }
 
-  private optimizeBudgetAllocation(campaignAnalysis: any[], totalBudget: number, targetROI: number): any[] {
+  private optimizeBudgetAllocation(campaignAnalysis: Record<string, unknown>[], totalBudget: number, targetROI: number): Record<string, unknown>[] {
     // Budget optimization algorithm
     const allocations = [];
 
     for (const campaign of campaignAnalysis) {
-      const weight = campaign.optimizationPotential / campaignAnalysis.reduce((sum, c) => sum + c.optimizationPotential, 0);
+      const weight = (campaign.optimizationPotential as number) / campaignAnalysis.reduce((sum, c) => sum + (c.optimizationPotential as number), 0);
       const newBudget = totalBudget * weight;
 
       allocations.push({
         campaignId: campaign.id,
         newBudget,
-        expectedROI: campaign.currentROI * (1 + campaign.optimizationPotential / campaign.currentROI)
+        expectedROI: (campaign.currentROI as number) * (1 + (campaign.optimizationPotential as number) / (campaign.currentROI as number))
       });
     }
 

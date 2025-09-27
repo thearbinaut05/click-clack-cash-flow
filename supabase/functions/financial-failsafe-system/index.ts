@@ -84,7 +84,7 @@ serve(async (req) => {
   }
 });
 
-async function initializeFailsafeSystem(supabase: any, stripe: any) {
+async function initializeFailsafeSystem(supabase: ReturnType<typeof createClient>, stripe: Stripe | null) {
   console.log('Initializing Financial Failsafe System');
   
   // Create failsafe configuration
@@ -175,7 +175,7 @@ async function initializeFailsafeSystem(supabase: any, stripe: any) {
   });
 }
 
-async function processCashoutWithFailsafe(supabase: any, stripe: any, payload: any) {
+async function processCashoutWithFailsafe(supabase: ReturnType<typeof createClient>, stripe: Stripe | null, payload: Record<string, unknown>) {
   console.log('Processing cashout with failsafe protection');
   
   const { userId, coins, payoutType, email, metadata } = payload;
@@ -197,9 +197,9 @@ async function processCashoutWithFailsafe(supabase: any, stripe: any, payload: a
     .eq('status', 'active')
     .order('error_count', { ascending: true });
 
-  let lastError: any = null;
+  let lastError: Error | null = null;
   let successfulConnection: string | null = null;
-  let transactionResult: any = null;
+  let transactionResult: Record<string, unknown> | null = null;
 
   // Try each connection method with progressive failover
   for (const connection of connections || []) {
@@ -362,7 +362,7 @@ async function processCashoutWithFailsafe(supabase: any, stripe: any, payload: a
   });
 }
 
-async function processStripeTransaction(stripe: any, payload: any) {
+async function processStripeTransaction(stripe: Stripe | null, payload: Record<string, unknown>) {
   if (!stripe) throw new Error('Stripe not configured');
   
   const { userId, coins, payoutType, email, metadata } = payload;
@@ -384,7 +384,7 @@ async function processStripeTransaction(stripe: any, payload: any) {
   // Process based on payout type
   switch (payoutType) {
     case 'standard':
-    case 'email':
+    case 'email': {
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amountInCents,
         currency: 'usd',
@@ -398,8 +398,9 @@ async function processStripeTransaction(stripe: any, payload: any) {
         amount: amountInCents,
         client_secret: paymentIntent.client_secret
       };
+      }
       
-    case 'bank_account':
+    case 'bank_account': {
       const transfer = await stripe.transfers.create({
         amount: amountInCents,
         currency: 'usd',
@@ -410,13 +411,14 @@ async function processStripeTransaction(stripe: any, payload: any) {
         status: 'completed',
         amount: amountInCents
       };
+      }
       
     default:
       throw new Error(`Unsupported payout type: ${payoutType}`);
   }
 }
 
-async function processPlaidTransaction(payload: any) {
+async function processPlaidTransaction(payload: Record<string, unknown>) {
   // Placeholder for real Plaid API integration
   console.log('Processing Plaid transaction:', payload);
   
@@ -431,7 +433,7 @@ async function processPlaidTransaction(payload: any) {
   };
 }
 
-async function processWellsFargoTransaction(payload: any) {
+async function processWellsFargoTransaction(payload: Record<string, unknown>) {
   // Placeholder for real Wells Fargo API integration
   console.log('Processing Wells Fargo transaction:', payload);
   
@@ -446,7 +448,7 @@ async function processWellsFargoTransaction(payload: any) {
   };
 }
 
-async function processChaseTransaction(payload: any) {
+async function processChaseTransaction(payload: Record<string, unknown>) {
   // Placeholder for real Chase API integration
   console.log('Processing Chase transaction:', payload);
   
@@ -461,13 +463,13 @@ async function processChaseTransaction(payload: any) {
   };
 }
 
-async function performHealthCheck(supabase: any, stripe: any) {
+async function performHealthCheck(supabase: ReturnType<typeof createClient>, stripe: Stripe | null) {
   console.log('Performing system health check');
   
   const healthResults = {
     timestamp: new Date().toISOString(),
     overall_status: 'healthy',
-    components: {} as any
+    components: {} as Record<string, unknown>
   };
 
   // Check Supabase connectivity
@@ -555,7 +557,7 @@ async function testBankConnection(provider: string) {
   }
 }
 
-async function testAllConnections(supabase: any, stripe: any) {
+async function testAllConnections(supabase: ReturnType<typeof createClient>, stripe: Stripe | null) {
   console.log('Testing all bank connections');
   
   const { data: connections } = await supabase
@@ -598,7 +600,7 @@ async function testAllConnections(supabase: any, stripe: any) {
   });
 }
 
-async function triggerEmergencyProtocol(supabase: any, payload: any) {
+async function triggerEmergencyProtocol(supabase: ReturnType<typeof createClient>, payload: Record<string, unknown>) {
   console.log('EMERGENCY: All payment methods failed - activating emergency protocol');
   
   // Log emergency event
@@ -629,7 +631,7 @@ async function triggerEmergencyProtocol(supabase: any, payload: any) {
   console.log('Emergency alerts sent to administrators');
 }
 
-async function emergencyRecovery(supabase: any, stripe: any, payload: any) {
+async function emergencyRecovery(supabase: ReturnType<typeof createClient>, stripe: Stripe | null, payload: Record<string, unknown>) {
   console.log('Starting emergency recovery process');
   
   const { recovery_type, ...data } = payload;
@@ -639,7 +641,7 @@ async function emergencyRecovery(supabase: any, stripe: any, payload: any) {
       // Attempt to reconnect all failed connections
       return await testAllConnections(supabase, stripe);
       
-    case 'manual_override':
+    case 'manual_override': {
       // Allow manual processing of failed transactions
       const { transaction_id } = data;
       await supabase
@@ -649,6 +651,7 @@ async function emergencyRecovery(supabase: any, stripe: any, payload: any) {
       return new Response(JSON.stringify({ success: true, message: 'Manual override applied' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
+      }
       
     case 'system_reset':
       // Reset all connection statuses
@@ -664,7 +667,7 @@ async function emergencyRecovery(supabase: any, stripe: any, payload: any) {
   }
 }
 
-async function getSystemStatus(supabase: any) {
+async function getSystemStatus(supabase: ReturnType<typeof createClient>) {
   const { data: config } = await supabase
     .from('financial_failsafe_config')
     .select('*')
@@ -696,7 +699,7 @@ async function getSystemStatus(supabase: any) {
   });
 }
 
-async function startHealthMonitoring(supabase: any, stripe: any) {
+async function startHealthMonitoring(supabase: ReturnType<typeof createClient>, stripe: Stripe | null) {
   console.log('Starting continuous health monitoring');
   
   while (true) {

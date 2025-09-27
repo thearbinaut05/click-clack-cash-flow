@@ -239,7 +239,7 @@ export class AutonomousAgentService {
         .from('agent_tasks')
         .insert({
           task_type: taskType,
-          payload: payload as any,
+          payload: payload as Record<string, unknown>,
           priority,
         })
         .select()
