@@ -11,6 +11,6 @@ if [ ! -d "node_modules" ]; then
   npm install dotenv express body-parser stripe winston cors helmet express-rate-limit
 fi
 
-# Start the server
-node cashout-server.js
+# Start the server using tsx for TypeScript support
+npx tsx cashout-server.ts
 

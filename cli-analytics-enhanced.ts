@@ -5,11 +5,16 @@
  * Real-time monitoring with actual API integration
  */
 
-const fs = require('fs');
-const path = require('path');
-const { spawn } = require('child_process');
-const http = require('http');
-const https = require('https');
+import fs from 'fs';
+import path from 'path';
+import { spawn } from 'child_process';
+import http from 'http';
+import https from 'https';
+import net from 'net';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ANSI color codes for terminal output
 const colors = {
@@ -797,7 +802,6 @@ Cashout Server: ${this.servers.cashout.status}
 
   async checkPort(port) {
     return new Promise((resolve) => {
-      const net = require('net');
       const server = net.createServer();
       
       server.listen(port, () => {
@@ -884,9 +888,9 @@ process.on('SIGINT', () => {
 });
 
 // Start the Enhanced CLI if run directly
-if (require.main === module) {
+if (import.meta.url === `file://${process.argv[1]}`) {
   const analytics = new EnhancedCliAnalytics();
   analytics.start().catch(console.error);
 }
 
-module.exports = EnhancedCliAnalytics;
+export default EnhancedCliAnalytics;
