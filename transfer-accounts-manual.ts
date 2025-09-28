@@ -97,7 +97,7 @@ async function scanComprehensiveUSDBalances() {
   logger.info('Starting comprehensive USD balance scan...');
   
   let grandTotal = 0;
-  let allDetails = [];
+  const allDetails: any[] = [];
   
   try {
     // First, try to query the usd_summary_view for a high-level overview
