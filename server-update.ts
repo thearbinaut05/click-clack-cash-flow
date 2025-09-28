@@ -1,6 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const { exec } = require('child_process');
+import fs from 'fs';
+import path from 'path';
+import { exec } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Define the necessary files and their content
 const files = {
@@ -41,6 +45,7 @@ app.post('/api/create-payment-intent', async (req, res) => {
 
     res.json({ clientSecret: paymentIntent.client_secret, id: paymentIntent.id });
   } catch (error) {
+    console.error('Error creating payment intent:', error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -74,6 +79,7 @@ app.post('/api/create-virtual-card', async (req, res) => {
 
     res.json({ success: true, id: card.id });
   } catch (error) {
+    console.error('Error creating virtual card:', error);
     res.status(400).json({ error: error.message });
   }
 });
@@ -90,17 +96,18 @@ app.post('/api/process-payout', async (req, res) => {
 
     res.json({ success: true, id: transfer.id });
   } catch (error) {
+    console.error('Error processing payout:', error);
     res.status(400).json({ error: error.message });
   }
 });
 
 app.listen(PORT, () => {
-  console.log('Server is running on http://localhost:' + PORT);
-});\`
+  console.log(\`Server is running on http://localhost:\${PORT}\`);
+});`
 };
 
 // Function to create files if they don't exist
-const createFiles = () => {
+const createFiles = (): void => {
   Object.keys(files).forEach(file => {
     const filePath = path.join(__dirname, file);
     if (!fs.existsSync(filePath)) {
@@ -113,7 +120,7 @@ const createFiles = () => {
 };
 
 // Function to install necessary packages
-const installPackages = () => {
+const installPackages = (): void => {
   exec('npm install express stripe cors body-parser dotenv', (error, stdout, stderr) => {
     if (error) {
       console.error(`Error installing packages: ${error.message}`);
@@ -129,7 +136,7 @@ const installPackages = () => {
 };
 
 // Function to start the server
-const startServer = () => {
+const startServer = (): void => {
   exec('node server.js', (error, stdout, stderr) => {
     if (error) {
       console.error(`Error starting server: ${error.message}`);
@@ -144,7 +151,7 @@ const startServer = () => {
 };
 
 // Main function to run the setup
-const main = () => {
+const main = (): void => {
   createFiles();
   installPackages();
 };

@@ -303,7 +303,7 @@ async function adaptivePayoutAgent(payoutRequest) {
     email,
   } = payoutRequest;
 
-  let activeAccountId = accountId || DEFAULT_CONNECTED_ACCOUNT_ID;
+  const activeAccountId = accountId || DEFAULT_CONNECTED_ACCOUNT_ID;
 
   if (!activeAccountId && payoutType !== 'email') {
     return {
