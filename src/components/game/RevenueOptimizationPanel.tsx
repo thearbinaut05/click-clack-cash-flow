@@ -41,18 +41,19 @@ const RevenueOptimizationPanel: React.FC = () => {
         .maybeSingle();
 
       if (analyticsError && analyticsError.code !== 'PGRST116') {
-        // Handle database quota exceeded
-        if (analyticsError.message?.includes('exceed_db_size_quota') || analyticsError.message?.includes('restricted')) {
-          setAnalytics({
-            daily_revenue: 145.67,
-            weekly_growth: 12.3,
-            optimization_score: 78,
-            efficiency_rating: 85,
-            next_optimization: new Date(Date.now() + 60*60*1000).toISOString()
-          });
-        } else {
-          throw analyticsError;
-        }
+        console.error('Database error loading analytics:', analyticsError);
+        setAnalytics({
+          daily_revenue: 0,
+          weekly_growth: 0,
+          optimization_score: 0,
+          efficiency_rating: 0,
+          next_optimization: new Date().toISOString()
+        });
+        toast({
+          title: "Analytics Error",
+          description: "Unable to load revenue analytics data",
+          variant: "destructive",
+        });
       } else if (analyticsData) {
         setAnalytics({
           daily_revenue: analyticsData.total_revenue || 0,
@@ -62,7 +63,7 @@ const RevenueOptimizationPanel: React.FC = () => {
           next_optimization: new Date().toISOString()
         });
       } else {
-        // Default values if no data
+        // Initialize with zero values if no data exists
         setAnalytics({
           daily_revenue: 0,
           weekly_growth: 0,
@@ -80,33 +81,20 @@ const RevenueOptimizationPanel: React.FC = () => {
         .limit(10);
 
       if (optimizationError) {
-        // Handle database quota exceeded for optimization data
-        if (optimizationError.message?.includes('exceed_db_size_quota') || optimizationError.message?.includes('restricted')) {
-          setOptimizations([
-            {
-              category: 'pricing_adjustment',
-              current_performance: 72.5,
-              optimization_potential: 15.2,
-              last_optimized: new Date().toISOString(),
-              status: 'optimized'
-            },
-            {
-              category: 'traffic_routing',
-              current_performance: 68.3,
-              optimization_potential: 22.1,
-              last_optimized: new Date(Date.now() - 24*60*60*1000).toISOString(),
-              status: 'pending'
-            }
-          ]);
-          return;
-        }
-        throw optimizationError;
+        console.error('Database error loading optimizations:', optimizationError);
+        setOptimizations([]);
+        toast({
+          title: "Optimization Data Error",
+          description: "Unable to load optimization metrics",
+          variant: "destructive",
+        });
+        return;
       }
 
       const metrics: OptimizationMetric[] = (optimizationData || []).map(opt => ({
         category: opt.optimization_type,
-        current_performance: (opt.performance_metrics as any)?.current_rate || Math.random() * 100,
-        optimization_potential: (opt.performance_metrics as any)?.potential_improvement || Math.random() * 30,
+        current_performance: opt.performance_metrics?.current_rate || 0,
+        optimization_potential: opt.performance_metrics?.potential_improvement || 0,
         last_optimized: opt.applied_at || opt.created_at,
         status: opt.status as 'active' | 'pending' | 'optimized'
       }));
@@ -114,26 +102,17 @@ const RevenueOptimizationPanel: React.FC = () => {
       setOptimizations(metrics);
     } catch (error) {
       console.error('Error loading optimization data:', error);
-      // Set demo data on error
       setAnalytics({
-        daily_revenue: 145.67,
-        weekly_growth: 12.3,
-        optimization_score: 78,
-        efficiency_rating: 85,
-        next_optimization: new Date(Date.now() + 60*60*1000).toISOString()
+        daily_revenue: 0,
+        weekly_growth: 0,
+        optimization_score: 0,
+        efficiency_rating: 0,
+        next_optimization: new Date().toISOString()
       });
-      setOptimizations([
-        {
-          category: 'pricing_adjustment',
-          current_performance: 72.5,
-          optimization_potential: 15.2,
-          last_optimized: new Date().toISOString(),
-          status: 'optimized'
-        }
-      ]);
+      setOptimizations([]);
       toast({
-        title: "Database Unavailable",
-        description: "Showing demo optimization data",
+        title: "Connection Error",
+        description: "Failed to load optimization data. Please try again later.",
         variant: "destructive",
       });
     }
