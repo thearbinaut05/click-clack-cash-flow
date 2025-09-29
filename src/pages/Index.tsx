@@ -13,6 +13,8 @@ import AutopilotCashoutPanel from "@/components/game/AutopilotCashoutPanel";
 import FundAccessDashboard from "@/components/game/FundAccessDashboard";
 import RevenueOptimizationPanel from "@/components/game/RevenueOptimizationPanel";
 import TransactionRecoveryPanel from "@/components/game/TransactionRecoveryPanel";
+import BankAccountSetup from '@/components/game/BankAccountSetup';
+import OfflinePaymentHandler from '@/components/game/OfflinePaymentHandler';
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
@@ -107,6 +109,12 @@ const Index = () => {
             
             {/* Transaction Recovery Panel - Critical for ensuring all payments work */}
             <TransactionRecoveryPanel />
+            
+            {/* Bank Account Setup - Essential for payout destinations */}
+            <BankAccountSetup />
+            
+            {/* Offline Payment Handler - Ensures payments work when offline */}
+            <OfflinePaymentHandler />
             
             {/* Revenue & External Accounts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

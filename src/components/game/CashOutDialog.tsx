@@ -13,6 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { CASHOUT_METHODS } from '@/utils/constants';
 import { CashoutService } from '@/services/CashoutService';
+import { addOfflineTransaction } from './OfflinePaymentHandler';
 import TestCashOutButton from './TestCashOutButton';
 
 interface CashOutDialogProps {
@@ -106,6 +107,23 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       });
       
       if (!result.success) {
+        // If main service fails, queue for offline processing
+        if (!navigator.onLine || result.error?.includes('database quota')) {
+          addOfflineTransaction({
+            amount: parseFloat(cashValue),
+            email: values.email,
+            method: payoutType
+          });
+          
+          setSuccess(`Payment queued for processing: $${cashValue} to ${values.email}`);
+          toast({
+            title: "Payment Queued",
+            description: "Payment will be processed when service is available",
+            variant: "default",
+          });
+          return;
+        }
+        
         throw new Error(result.error || 'Payment processing failed');
       }
       
