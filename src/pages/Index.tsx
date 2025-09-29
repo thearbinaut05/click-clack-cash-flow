@@ -12,6 +12,7 @@ import ExternalAccountsPanel from '@/components/game/ExternalAccountsPanel';
 import AutopilotCashoutPanel from "@/components/game/AutopilotCashoutPanel";
 import FundAccessDashboard from "@/components/game/FundAccessDashboard";
 import RevenueOptimizationPanel from "@/components/game/RevenueOptimizationPanel";
+import TransactionRecoveryPanel from "@/components/game/TransactionRecoveryPanel";
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
@@ -103,6 +104,9 @@ const Index = () => {
             
             {/* Revenue Optimization Panel */}
             <RevenueOptimizationPanel />
+            
+            {/* Transaction Recovery Panel - Critical for ensuring all payments work */}
+            <TransactionRecoveryPanel />
             
             {/* Revenue & External Accounts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

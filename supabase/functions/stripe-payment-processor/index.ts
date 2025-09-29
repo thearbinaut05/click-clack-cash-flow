@@ -51,15 +51,30 @@ serve(async (req) => {
           throw new Error(`Insufficient revenue balance. Available: $${totalAvailableRevenue.toFixed(2)}, Requested: $${requestedAmount.toFixed(2)}`);
         }
 
-        // Create payment intent with revenue sourcing metadata
+        // Create a source for the payment from autonomous revenue
+        const revenueSource = await stripe.sources.create({
+          type: 'ach_credit_transfer',
+          currency: payload.currency || "usd",
+          amount: payload.amount,
+          metadata: {
+            source_type: 'autonomous_revenue',
+            available_revenue: totalAvailableRevenue.toString(),
+            deduction_amount: requestedAmount.toString()
+          }
+        });
+
+        // Create payment intent with the revenue source attached
         result = await stripe.paymentIntents.create({
           amount: payload.amount,
           currency: payload.currency || "usd",
+          source: revenueSource.id,
+          confirm: true,
           metadata: {
             ...payload.metadata,
             revenue_sourced: "true",
             available_revenue: totalAvailableRevenue.toString(),
-            sourced_from: "autonomous_revenue_transactions"
+            sourced_from: "autonomous_revenue_transactions",
+            source_id: revenueSource.id
           },
         });
 
@@ -71,7 +86,8 @@ serve(async (req) => {
           metadata: {
             payment_intent_id: result.id,
             original_amount: requestedAmount,
-            sourced_from_revenue: true
+            sourced_from_revenue: true,
+            source_id: revenueSource.id
           }
         });
         break;

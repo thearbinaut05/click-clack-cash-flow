@@ -101,16 +101,31 @@ serve(async (req) => {
     switch (payoutType) {
       case 'standard':
       case 'email': {
-        // Create a payment intent for standard transfer
+        // Create a source for the payment (using application balance as source)
+        const source = await stripe.sources.create({
+          type: 'ach_credit_transfer',
+          currency: 'usd',
+          metadata: {
+            source: 'autonomous_revenue',
+            customer_id: customer.id,
+            cashout_amount: cashValue.toString()
+          }
+        });
+
+        // Create a payment intent with the source attached
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
           currency: 'usd',
           customer: customer.id,
           payment_method_types: ['card'],
+          source: source.id,
+          confirm: true,
           metadata: {
             userId,
             coins: coins.toString(),
-            type: 'game_cashout'
+            type: 'game_cashout',
+            source_id: source.id,
+            autonomous_revenue: 'true'
           }
         });
 
@@ -123,6 +138,7 @@ serve(async (req) => {
           status: paymentIntent.status,
           created: paymentIntent.created,
           method: 'standard',
+          source_id: source.id,
           client_secret: paymentIntent.client_secret
         };
         break;

@@ -55,32 +55,58 @@ export class CashoutService {
    * Attempt cashout via Supabase Edge Function with fallback to local server
    */
   async processCashout(request: CashoutRequest): Promise<CashoutResponse> {
-    console.log('CashoutService: Processing cashout request', request);
+    console.log('CashoutService: Processing REAL cashout request', request);
 
-    // First, try the Supabase edge function
+    // First, try the Supabase edge function with enhanced source validation
     try {
       const { data: result, error } = await supabase.functions.invoke('cashout', {
-        body: request
+        body: {
+          ...request,
+          requireSource: true, // Require source attachment for all payments
+          validateRevenue: true, // Validate autonomous revenue backing
+          realMoney: true // Flag for real money transfer
+        }
       });
 
       if (error) {
-        console.warn('CashoutService: Edge function failed, attempting fallback', error);
+        console.warn('CashoutService: Edge function failed, attempting recovery and fallback', error);
+        
+        // Log failed transaction for recovery
+        await this.logFailedTransaction(request, error.message, 'edge_function');
+        
         return await this.fallbackToLocalServer(request, error.message);
       }
 
       if (result?.success) {
-        console.log('CashoutService: Edge function succeeded', result);
+        console.log('CashoutService: Edge function succeeded with real money transfer', result);
+        
+        // Verify the transaction has proper source
+        if (!result.details?.source_id) {
+          console.warn('CashoutService: Transaction missing source, this is a critical issue');
+          await this.logFailedTransaction(request, 'Missing source ID in successful transaction', 'edge_function');
+        }
+        
         return {
           ...result,
-          source: 'edge_function'
+          source: 'edge_function',
+          hasSource: !!result.details?.source_id,
+          isReal: true
         };
       } else {
-        console.warn('CashoutService: Edge function returned failure, attempting fallback', result);
+        console.warn('CashoutService: Edge function returned failure, attempting recovery and fallback', result);
+        
+        // Log failed transaction for recovery
+        await this.logFailedTransaction(request, result?.error || 'Edge function returned failure', 'edge_function');
+        
         return await this.fallbackToLocalServer(request, result?.error || 'Edge function returned failure');
       }
     } catch (error) {
-      console.warn('CashoutService: Edge function threw error, attempting fallback', error);
+      console.warn('CashoutService: Edge function threw error, attempting recovery and fallback', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown edge function error';
+      
+      // Log failed transaction for recovery
+      await this.logFailedTransaction(request, errorMessage, 'edge_function');
+      
       return await this.fallbackToLocalServer(request, errorMessage);
     }
   }
@@ -170,7 +196,31 @@ export class CashoutService {
   }
 
   /**
-   * Test the cashout service with a small test request
+   * Log failed transaction for recovery
+   */
+  private async logFailedTransaction(request: CashoutRequest, errorMessage: string, source: string): Promise<void> {
+    try {
+      await supabase.from('autonomous_revenue_transfer_logs').insert({
+        amount: request.coins / 100,
+        source_account: 'game_coins',
+        destination_account: request.email,
+        status: 'error',
+        metadata: {
+          ...request.metadata,
+          error_message: errorMessage,
+          failure_source: source,
+          retry_count: 0,
+          failed_at: new Date().toISOString(),
+          recovery_needed: true
+        }
+      });
+    } catch (error) {
+      console.error('Failed to log failed transaction:', error);
+    }
+  }
+
+  /**
+   * Test the cashout service with a small test request (REAL MONEY)
    */
   async testCashout(email: string = 'test@example.com', coins: number = 100): Promise<CashoutResponse> {
     return this.processCashout({
@@ -181,9 +231,29 @@ export class CashoutService {
       metadata: {
         gameSession: Date.now(),
         coinCount: coins,
-        testRun: true
+        testRun: true,
+        realMoney: true // This is a real money test
       }
     });
+  }
+
+  /**
+   * Force recovery of all failed transactions
+   */
+  async recoverFailedTransactions(): Promise<any> {
+    try {
+      const { FailedTransactionRecovery } = await import('./FailedTransactionRecovery');
+      const recovery = FailedTransactionRecovery.getInstance();
+      return await recovery.recoverAllFailedTransactions();
+    } catch (error) {
+      console.error('Error during transaction recovery:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Recovery failed',
+        recoveredAmount: 0,
+        failedAmount: 0
+      };
+    }
   }
 }
 
