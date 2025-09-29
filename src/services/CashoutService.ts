@@ -1,9 +1,9 @@
 /**
- * Cashout Service with Edge Function Fallback
- * Handles cashout requests with automatic fallback to local server
+ * Cashout Service with Lovable Cloud Integration
+ * Handles cashout requests using Lovable Cloud backend instead of Supabase
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { LovableCloudService } from './LovableCloudService';
 
 interface CashoutRequest {
   userId: string;
@@ -20,14 +20,17 @@ interface CashoutResponse {
   message?: string;
   isReal?: boolean;
   autonomous_revenue_balance?: number;
-  source?: 'edge_function' | 'local_server' | 'demo_mode' | 'direct_stripe';
-  hasSource?: boolean;
+  source?: 'lovable_cloud' | 'demo_mode' | 'fallback';
+  transaction_id?: string;
 }
 
 export class CashoutService {
   private static instance: CashoutService;
-  private localServerUrl = 'http://localhost:4000'; // Default port from cashout-server.js
-  private fallbackMode = false;
+  private lovableCloud: LovableCloudService;
+
+  constructor() {
+    this.lovableCloud = LovableCloudService.getInstance();
+  }
 
   static getInstance(): CashoutService {
     if (!CashoutService.instance) {
@@ -37,111 +40,72 @@ export class CashoutService {
   }
 
   /**
-   * Set default bank account for transfers when Supabase is unavailable
-   */
-  private getDefaultBankAccount(): string {
-    // This should be configured per user, but using default for demo
-    return process.env.CONNECTED_ACCOUNT_ID || 'acct_1RPfy4BRrjIUJ5cS';
-  }
-
-  /**
-   * Normalize payout type for the local server
-   * Maps frontend types to what the local server expects
-   */
-  private normalizePayoutType(payoutType: string): string {
-    const mapping: { [key: string]: string } = {
-      'standard': 'email',          // Standard payments go to email
-      'email': 'email',             // Email stays email
-      'instant_card': 'instant_card', // Instant card stays the same
-      'bank_account': 'bank_account', // Bank account stays the same
-      'virtual-card': 'instant_card', // Virtual card maps to instant card
-      'bank-card': 'bank_account'     // Bank card maps to bank account
-    };
-    
-    return mapping[payoutType] || 'email'; // Default to email if unknown
-  }
-
-  /**
-   * Attempt cashout via direct Stripe API with proper source attachment
+   * Process cashout using Lovable Cloud direct revenue system
+   * No Stripe Connected Accounts, no accumulation - direct revenue usage
    */
   async processCashout(request: CashoutRequest): Promise<CashoutResponse> {
-    console.log('CashoutService: Processing REAL cashout request', request);
+    console.log('CashoutService: Processing cashout via Lovable Cloud', request);
 
-    // Enable fallback mode immediately if database quota exceeded
-    this.fallbackMode = true;
-    
-    // Skip Supabase entirely and use direct Stripe API with proper source
-    return await this.processDirectStripePayment(request);
-  }
-
-  /**
-   * Process payment directly through Stripe API with source attachment
-   */
-  private async processDirectStripePayment(request: CashoutRequest): Promise<CashoutResponse> {
     try {
-      console.log('CashoutService: Processing direct Stripe payment with source attachment');
-      
       // Calculate cash value (100 coins = $1)
       const cashValue = Math.max(1, request.coins / 100);
-      const amountInCents = Math.round(cashValue * 100);
       
-      // Get bank account for transfers
-      const bankAccountId = this.getDefaultBankAccount();
-      
-      // Create Stripe payment with proper source
-      const paymentData = {
-        amount: amountInCents,
-        currency: 'usd',
-        email: request.email,
-        payoutType: request.payoutType,
-        bankAccountId,
-        metadata: {
-          ...request.metadata,
-          userId: request.userId,
-          coins: request.coins,
-          cashValue,
-          source: 'autonomous_revenue',
-          realMoney: true,
-          timestamp: new Date().toISOString()
-        }
-      };
-
-      // Use local server as Stripe API proxy with source attachment
-      const response = await fetch(`${this.localServerUrl}/cashout-with-source`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(paymentData)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Stripe payment failed: ${response.status}`);
+      // Check Lovable Cloud service health first
+      const isHealthy = await this.lovableCloud.healthCheck();
+      if (!isHealthy) {
+        console.warn('Lovable Cloud service unavailable, using fallback');
+        return this.createDemoSuccessResponse(request);
       }
 
-      const result = await response.json();
+      // Get current revenue balance to verify funds available
+      const revenueBalance = await this.lovableCloud.getRevenueBalance(request.userId);
       
-      if (result.success) {
-        console.log('CashoutService: Direct Stripe payment succeeded', result);
+      if (revenueBalance < cashValue) {
         return {
-          ...result,
-          source: 'direct_stripe',
+          success: false,
+          error: `Insufficient revenue balance. Available: $${revenueBalance.toFixed(2)}, Requested: $${cashValue.toFixed(2)}`,
+          source: 'lovable_cloud'
+        };
+      }
+
+      // Process cashout using direct revenue (no accumulation)
+      const result = await this.lovableCloud.processCashout(
+        request.userId,
+        cashValue,
+        request.email
+      );
+
+      if (result.success) {
+        console.log('CashoutService: Lovable Cloud cashout succeeded', result);
+        return {
+          success: true,
+          source: 'lovable_cloud',
           isReal: true,
-          hasSource: true
+          transaction_id: result.transaction_id,
+          autonomous_revenue_balance: Math.max(0, revenueBalance - cashValue),
+          message: `Successfully cashed out $${cashValue.toFixed(2)} via direct revenue to ${request.email}`,
+          details: {
+            id: result.transaction_id,
+            amount: Math.round(cashValue * 100),
+            currency: 'usd',
+            status: 'completed',
+            revenue_source: 'direct',
+            bypass_accumulation: true
+          }
         };
       } else {
-        throw new Error(result.error || 'Stripe payment failed');
+        throw new Error(result.error || 'Lovable Cloud cashout failed');
       }
     } catch (error) {
-      console.error('CashoutService: Direct Stripe payment failed', error);
+      console.error('CashoutService: Lovable Cloud cashout failed', error);
       
-      // Final fallback to demo mode with clear messaging
+      // Fallback to demo mode with clear messaging
       return this.createDemoSuccessResponse(request);
     }
   }
 
   /**
-   * Create demo success response when all payment methods fail
+   * Create demo success response when Lovable Cloud is unavailable
    */
   private createDemoSuccessResponse(request: CashoutRequest): CashoutResponse {
     const cashValue = Math.max(1, request.coins / 100);
@@ -156,117 +120,40 @@ export class CashoutService {
         amount: Math.round(cashValue * 100),
         currency: 'usd',
         status: 'demo_success',
-        demo_note: 'This is a demo transaction. Real payment system is temporarily unavailable.'
+        demo_note: 'This is a demo transaction. Lovable Cloud service is temporarily unavailable.'
       }
     };
   }
 
   /**
-   * Fallback to local Express server
+   * Get revenue balance for user
    */
-  private async fallbackToLocalServer(request: CashoutRequest, edgeError: string): Promise<CashoutResponse> {
+  async getRevenueBalance(userId: string): Promise<number> {
     try {
-      console.log('CashoutService: Attempting fallback to local server');
-      
-      // Normalize the payout type for the local server
-      const normalizedRequest = {
-        ...request,
-        payoutType: this.normalizePayoutType(request.payoutType)
-      };
-      
-      console.log('CashoutService: Normalized request for local server', normalizedRequest);
-      
-      const response = await fetch(`${this.localServerUrl}/cashout`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(normalizedRequest)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Local server error: ${response.status} ${errorText}`);
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        console.log('CashoutService: Local server fallback succeeded', result);
-        return {
-          ...result,
-          source: 'local_server',
-          message: result.message || 'Cashout processed successfully via local server (fallback mode)'
-        };
-      } else {
-        throw new Error(result.error || 'Local server returned failure');
-      }
-    } catch (localError) {
-      console.error('CashoutService: Both edge function and local server failed', {
-        edgeError,
-        localError: localError instanceof Error ? localError.message : localError
-      });
-
-      return {
-        success: false,
-        error: this.createFallbackErrorMessage(edgeError, localError instanceof Error ? localError.message : String(localError)),
-        source: 'local_server'
-      };
-    }
-  }
-
-  /**
-   * Create a user-friendly error message when both methods fail
-   */
-  private createFallbackErrorMessage(edgeError: string, localError: string): string {
-    if (edgeError.includes('Failed to send a request to the Edge Function')) {
-      return 'Cashout service is temporarily unavailable. Please try again later or contact support.';
-    }
-    
-    if (localError.includes('fetch')) {
-      return 'Unable to connect to payment processing service. Please ensure you have an internet connection and try again.';
-    }
-
-    return 'Payment processing is temporarily unavailable. Please try again later.';
-  }
-
-  /**
-   * Check if the local server is running
-   */
-  async checkLocalServerHealth(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.localServerUrl}/health`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Log failed transaction for recovery
-   */
-  private async logFailedTransaction(request: CashoutRequest, errorMessage: string, source: string): Promise<void> {
-    try {
-      await supabase.from('autonomous_revenue_transfer_logs').insert({
-        amount: request.coins / 100,
-        source_account: 'game_coins',
-        destination_account: request.email,
-        status: 'error',
-        metadata: {
-          ...request.metadata,
-          error_message: errorMessage,
-          failure_source: source,
-          retry_count: 0,
-          failed_at: new Date().toISOString(),
-          recovery_needed: true
-        }
-      });
+      return await this.lovableCloud.getRevenueBalance(userId);
     } catch (error) {
-      console.error('Failed to log failed transaction:', error);
+      console.error('Failed to get revenue balance:', error);
+      return 0;
     }
+  }
+
+  /**
+   * Get revenue transactions for user
+   */
+  async getRevenueTransactions(userId: string, limit: number = 50) {
+    try {
+      return await this.lovableCloud.getRevenueTransactions(userId, limit);
+    } catch (error) {
+      console.error('Failed to get revenue transactions:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Check Lovable Cloud service health
+   */
+  async checkServiceHealth(): Promise<boolean> {
+    return await this.lovableCloud.healthCheck();
   }
 
   /**
