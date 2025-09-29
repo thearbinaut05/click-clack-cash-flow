@@ -1,5 +1,5 @@
-const { exec } = require('child_process');
-const fs = require('fs');
+import { exec } from 'child_process';
+import fs from 'fs';
 
 // Function to check environment variables
 function checkEnvVariables() {
