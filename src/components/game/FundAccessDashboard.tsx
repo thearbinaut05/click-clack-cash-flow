@@ -37,41 +37,33 @@ const FundAccessDashboard: React.FC = () => {
         .rpc('check_balance');
       
       if (error) {
-        // Handle database quota exceeded gracefully
-        if (error.message?.includes('exceed_db_size_quota') || error.message?.includes('restricted')) {
-          setFundData([{ 
-            source_system: 'demo_balance', 
-            available_usd: 1247.83, 
-            pending_usd: 0, 
-            total_usd: 1247.83, 
-            last_updated: new Date().toISOString() 
-          }]);
-          toast({
-            title: "Database Temporarily Unavailable",
-            description: "Showing demo data - database quota exceeded",
-            variant: "destructive",
-          });
-          setLastRefresh(new Date());
-          return;
-        }
-        throw error;
+        console.error('Database error loading funds:', error);
+        setFundData([]);
+        toast({
+          title: "Database Error",
+          description: "Unable to load fund data. Please check your connection.",
+          variant: "destructive",
+        });
+        setLastRefresh(new Date());
+        return;
       }
       
-      setFundData(data ? [{ source_system: 'balance', available_usd: Number((data as any)?.balance_amount || 0), pending_usd: 0, total_usd: Number((data as any)?.balance_amount || 0), last_updated: new Date().toISOString() }] : []);
+      const balanceData = data ? [{
+        source_system: 'balance',
+        available_usd: Number(data?.balance_amount || 0),
+        pending_usd: 0,
+        total_usd: Number(data?.balance_amount || 0),
+        last_updated: new Date().toISOString()
+      }] : [];
+      
+      setFundData(balanceData);
       setLastRefresh(new Date());
     } catch (error) {
       console.error('Error loading fund data:', error);
-      // Show demo data on any error
-      setFundData([{ 
-        source_system: 'demo_balance', 
-        available_usd: 1247.83, 
-        pending_usd: 0, 
-        total_usd: 1247.83, 
-        last_updated: new Date().toISOString() 
-      }]);
+      setFundData([]);
       toast({
-        title: "Error Loading Funds",
-        description: "Database unavailable - showing demo data",
+        title: "Connection Error",
+        description: "Failed to load fund data. Please try again later.",
         variant: "destructive",
       });
       setLastRefresh(new Date());

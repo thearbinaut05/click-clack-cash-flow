@@ -66,7 +66,7 @@ const BASE_EXPONENTIAL_GAIN = 2;
 
 const maximizeNFTProfits = (nfts: NFTPosition[], coins: number): NFTPosition[] => {
   // Infinite NFT logic: allocate coins to NFTs with highest profit potential
-  // For demo: allocate all coins to the NFT with lowest profit (rebalancing)
+  // Strategy: allocate all coins to the NFT with lowest profit (rebalancing)
   if (nfts.length === 0) return nfts;
   const sorted = [...nfts].sort((a, b) => a.profit - b.profit);
   sorted[0].allocation += coins; // allocate all new coins to lowest profit NFT
@@ -335,7 +335,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
   
-  // Reset progress (for demo purposes)
+  // Reset game progress
   const resetProgress = () => {
     setCoins(0);
     setEnergy(100);

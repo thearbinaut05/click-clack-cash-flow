@@ -239,9 +239,7 @@ async function main() {
     }
     
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY === 'your_supabase_service_role_key_here') {
-      logger.warn('SUPABASE_SERVICE_ROLE_KEY not properly configured - using demo mode');
-      displayDemoReport();
-      return;
+      throw new Error('SUPABASE_SERVICE_ROLE_KEY not properly configured in .env file');
     }
 
     await pgClient.connect();
@@ -270,48 +268,19 @@ async function main() {
     logger.info('Database connection closed');
     
   } catch (error) {
-    if (error.code === 'ENOTFOUND' || error.message.includes('getaddrinfo')) {
-      logger.warn('Cannot connect to Supabase database (network restrictions). Running in demo mode...');
-      displayDemoReport();
-    } else {
-      logger.error(`Failed to scan USD balances: ${error.message}`);
-      console.error('Error details:', error);
-      process.exit(1);
+    logger.error(`Failed to scan USD balances: ${error.message}`);
+    console.error('Error details:', error);
+    if (pgClient) {
+      try {
+        await pgClient.end();
+      } catch (closeError) {
+        logger.error('Error closing database connection:', closeError);
+      }
     }
+    process.exit(1);
   }
 }
 
-/**
- * Display demo report when database is not accessible
- */
-function displayDemoReport() {
-  console.log('\n' + '='.repeat(60));
-  console.log('🏦 COMPREHENSIVE USD BALANCE REPORT (DEMO MODE)');
-  console.log('='.repeat(60));
-  console.log('⚠️  Database connection not available - showing demo data');
-  console.log('');
-  
-  console.log('📋 Tables that would be scanned:');
-  USD_TABLES_AND_FIELDS.forEach(({ table, field }) => {
-    console.log(`  ${table}.${field}`);
-  });
-  
-  console.log('');
-  console.log('🔧 Setup Required:');
-  console.log('  1. Configure valid SUPABASE_SERVICE_ROLE_KEY in .env');
-  console.log('  2. Ensure network access to Supabase');
-  console.log('  3. Verify database tables exist');
-  console.log('  4. Configure Stripe credentials for transfers');
-  
-  console.log('');
-  console.log('💡 Example .env configuration:');
-  console.log('  SUPABASE_URL=https://your-project.supabase.co');
-  console.log('  SUPABASE_SERVICE_ROLE_KEY=your_actual_service_role_key');
-  console.log('  STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key');
-  console.log('  CONNECTED_ACCOUNT_ID=acct_your_stripe_account_id');
-  
-  console.log('='.repeat(60));
-}
 // Run the comprehensive USD scan
 main()
   .then(() => {
