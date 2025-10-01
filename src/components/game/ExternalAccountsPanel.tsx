@@ -1,18 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Wallet, CreditCard, Building2, ArrowUpRight, RefreshCw, DollarSign } from "lucide-react";
+import { ExternalAccountsService } from "./ExternalAccountsService";
 
 interface ExternalAccount {
   id: string;
-  type: 'stripe' | 'bank' | 'crypto';
+  type: 'lovable_cloud' | 'bank' | 'crypto';
   name: string;
   balance: number;
   currency: string;
@@ -27,59 +27,45 @@ export default function ExternalAccountsPanel() {
   const [selectedAccount, setSelectedAccount] = useState<ExternalAccount | null>(null);
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const { toast } = useToast();
+  const externalAccountsService = new ExternalAccountsService();
 
   const loadExternalAccounts = useCallback(async () => {
     try {
       setLoading(true);
       
-      // Get Stripe balance
-      const { data: stripeBalance, error: stripeError } = await supabase.functions.invoke('stripe-payment-processor', {
-        body: { action: 'get_balance' }
-      });
-
-      if (stripeError) throw stripeError;
-
-      // Get bank transfer accounts
-      const { data: bankAccounts } = await supabase
-        .from('bank_transfers')
-        .select('bank_account_id, amount, status')
-        .eq('status', 'completed')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
+      // Get all external balances from Lovable Cloud
+      const balances = await externalAccountsService.getAllExternalBalances('demo_user');
+      
       // Create external accounts list
       const externalAccounts: ExternalAccount[] = [];
 
-      // Add Stripe account
-      if (stripeBalance?.available?.[0]) {
+      // Add Lovable Cloud account
+      const lovableCloudAccount = balances.find(b => b.accountType === 'lovable_cloud');
+      if (lovableCloudAccount) {
         externalAccounts.push({
-          id: 'stripe_main',
-          type: 'stripe',
-          name: 'Stripe Account',
-          balance: stripeBalance.available[0].amount / 100,
-          currency: stripeBalance.available[0].currency.toUpperCase(),
-          status: 'connected',
-          lastSync: new Date().toISOString(),
+          id: lovableCloudAccount.accountId,
+          type: 'lovable_cloud',
+          name: 'Lovable Cloud Revenue',
+          balance: lovableCloudAccount.balance,
+          currency: lovableCloudAccount.currency,
+          status: lovableCloudAccount.status === 'active' ? 'connected' : 'error',
+          lastSync: lovableCloudAccount.lastUpdated,
         });
       }
 
-      // Add bank accounts (simulated from transfers)
-      const bankAccountMap = new Map();
-      bankAccounts?.forEach(transfer => {
-        if (!bankAccountMap.has(transfer.bank_account_id)) {
-          bankAccountMap.set(transfer.bank_account_id, {
-            id: transfer.bank_account_id,
-            type: 'bank',
-            name: `Bank Account ${transfer.bank_account_id.slice(-4)}`,
-            balance: 0, // Would need real bank API integration
-            currency: 'USD',
-            status: 'connected',
-            lastSync: new Date().toISOString(),
-          });
-        }
+      // Add bank accounts
+      const bankAccounts = balances.filter(b => b.accountType === 'bank');
+      bankAccounts.forEach(account => {
+        externalAccounts.push({
+          id: account.accountId,
+          type: 'bank',
+          name: `Bank Account ${account.accountId.slice(-4)}`,
+          balance: account.balance,
+          currency: account.currency,
+          status: account.status === 'active' ? 'connected' : 'error',
+          lastSync: account.lastUpdated,
+        });
       });
-
-      externalAccounts.push(...Array.from(bankAccountMap.values()));
 
       setAccounts(externalAccounts);
     } catch (error) {
@@ -124,30 +110,21 @@ export default function ExternalAccountsPanel() {
       // Create transfer based on account type
       let transferResult;
       
-      if (selectedAccount.type === 'stripe') {
-        // Transfer from Stripe to user's bank account
-        transferResult = await supabase.functions.invoke('stripe-payment-processor', {
-          body: {
-            action: 'create_transfer',
-            amount: Math.round(amount * 100),
-            currency: selectedAccount.currency.toLowerCase(),
-            destination: 'acct_1RPfy4BRrjIUJ5cS', // User's connected account
-            metadata: {
-              transfer_type: 'external_withdrawal',
-              source_account: selectedAccount.id,
-            }
-          }
-        });
+      if (selectedAccount.type === 'lovable_cloud') {
+        // Transfer from Lovable Cloud direct revenue
+        transferResult = await externalAccountsService.transferFromLovableCloud(
+          'demo_user', 
+          amount, 
+          'demo@example.com'
+        );
       } else if (selectedAccount.type === 'bank') {
         // Initiate bank transfer
-        transferResult = await supabase.rpc('initiate_bank_transfer', {
-          p_amount: amount,
-          p_bank_account_id: selectedAccount.id,
-          p_transfer_type: 'withdrawal'
-        });
+        transferResult = await externalAccountsService.transferToBankAccount(amount, selectedAccount.id);
       }
 
-      if (transferResult?.error) throw transferResult.error;
+      if (transferResult && !transferResult.success) {
+        throw new Error(transferResult.error || 'Transfer failed');
+      }
 
       toast({
         title: "Transfer Initiated",
@@ -171,10 +148,10 @@ export default function ExternalAccountsPanel() {
 
   const getAccountIcon = (type: string) => {
     switch (type) {
-      case 'stripe': return <CreditCard className="h-5 w-5" />;
+      case 'lovable_cloud': return <DollarSign className="h-5 w-5" />;
       case 'bank': return <Building2 className="h-5 w-5" />;
       case 'crypto': return <Wallet className="h-5 w-5" />;
-      default: return <DollarSign className="h-5 w-5" />;
+      default: return <CreditCard className="h-5 w-5" />;
     }
   };
 
