@@ -91,13 +91,16 @@ const RevenueOptimizationPanel: React.FC = () => {
         return;
       }
 
-      const metrics: OptimizationMetric[] = (optimizationData || []).map(opt => ({
-        category: opt.optimization_type,
-        current_performance: opt.performance_metrics?.current_rate || 0,
-        optimization_potential: opt.performance_metrics?.potential_improvement || 0,
-        last_optimized: opt.applied_at || opt.created_at,
-        status: opt.status as 'active' | 'pending' | 'optimized'
-      }));
+      const metrics: OptimizationMetric[] = (optimizationData || []).map(opt => {
+        const perfMetrics = opt.performance_metrics as any;
+        return {
+          category: opt.optimization_type,
+          current_performance: (perfMetrics && typeof perfMetrics === 'object' && 'current_rate' in perfMetrics ? Number(perfMetrics.current_rate) : 0) || 0,
+          optimization_potential: (perfMetrics && typeof perfMetrics === 'object' && 'potential_improvement' in perfMetrics ? Number(perfMetrics.potential_improvement) : 0) || 0,
+          last_optimized: opt.applied_at || opt.created_at,
+          status: opt.status as 'active' | 'pending' | 'optimized'
+        };
+      });
 
       setOptimizations(metrics);
     } catch (error) {

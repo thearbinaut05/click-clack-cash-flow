@@ -50,9 +50,9 @@ const FundAccessDashboard: React.FC = () => {
       
       const balanceData = data ? [{
         source_system: 'balance',
-        available_usd: Number(data?.balance_amount || 0),
+        available_usd: Number((typeof data === 'object' && data !== null && 'balance_amount' in data ? data.balance_amount : 0) || 0),
         pending_usd: 0,
-        total_usd: Number(data?.balance_amount || 0),
+        total_usd: Number((typeof data === 'object' && data !== null && 'balance_amount' in data ? data.balance_amount : 0) || 0),
         last_updated: new Date().toISOString()
       }] : [];
       
