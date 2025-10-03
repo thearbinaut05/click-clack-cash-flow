@@ -1,5 +1,5 @@
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { GameProvider } from '@/contexts/GameContext';
 import GameHeader from '@/components/game/GameHeader';
 import TapArea from '@/components/game/TapArea';
@@ -15,12 +15,24 @@ import RevenueOptimizationPanel from "@/components/game/RevenueOptimizationPanel
 import TransactionRecoveryPanel from "@/components/game/TransactionRecoveryPanel";
 import BankAccountSetup from '@/components/game/BankAccountSetup';
 import OfflinePaymentHandler from '@/components/game/OfflinePaymentHandler';
+import OfferWall from '@/components/game/OfferWall';
+import AffiliateNetworkConfig from '@/components/game/AffiliateNetworkConfig';
+import AffiliateRevenueDashboard from '@/components/game/AffiliateRevenueDashboard';
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
 
 const Index = () => {
   const realtimeConnection = useRealtimeConnection();
+  const [userId] = useState(() => {
+    // Get or create user ID
+    let id = localStorage.getItem('user_id');
+    if (!id) {
+      id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('user_id', id);
+    }
+    return id;
+  });
 
   useEffect(() => {
     // Subscribe to real-time updates for all critical tables
@@ -100,6 +112,15 @@ const Index = () => {
                 Autonomous AI-Powered Revenue Generation System
               </p>
             </div>
+            
+            {/* Affiliate Network Configuration */}
+            <AffiliateNetworkConfig />
+            
+            {/* Offer Wall - Earn Real Money via CPA/CPL/PPC */}
+            <OfferWall userId={userId} />
+            
+            {/* Affiliate Revenue Dashboard */}
+            <AffiliateRevenueDashboard userId={userId} />
             
             {/* Fund Access Dashboard - Priority #1 */}
             <FundAccessDashboard />
