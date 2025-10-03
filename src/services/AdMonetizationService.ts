@@ -1,5 +1,6 @@
 
 import { AD_NETWORKS, AFFILIATE_API_ENDPOINTS } from '@/utils/constants';
+import RealAffiliateNetworkService from './RealAffiliateNetworkService';
 
 export interface AdPerformanceMetrics {
   impressions: number;
@@ -40,10 +41,12 @@ class AdMonetizationService {
   private currentOffers: OfferData[] = [];
   private userSegment: string = 'general';
   private lastOptimization: Date | null = null;
+  private affiliateNetwork: RealAffiliateNetworkService;
   
   private constructor() {
     // Initialize with some default offers if API is not available
     this.loadInitialOffers();
+    this.affiliateNetwork = RealAffiliateNetworkService.getInstance();
   }
   
   static getInstance(): AdMonetizationService {
@@ -190,7 +193,7 @@ class AdMonetizationService {
     return ppcRate;
   }
   
-  async recordConversion(category: string = 'general'): Promise<number> {
+  async recordConversion(category: string = 'general', userId?: string): Promise<number> {
     const currentMetrics = this.getCurrentMetrics();
     const cpaRate = this.calculateCPARate(currentMetrics.conversions + 1, category);
     
@@ -203,6 +206,20 @@ class AdMonetizationService {
       earnings: currentMetrics.earnings + cpaRate,
       timestamp: new Date()
     });
+    
+    // Track real conversion in affiliate network if userId provided
+    if (userId) {
+      try {
+        await this.affiliateNetwork.trackConversion(
+          `auto_${category}_${Date.now()}`,
+          userId,
+          cpaRate
+        );
+        console.log('Real affiliate conversion tracked:', cpaRate);
+      } catch (error) {
+        console.log('Failed to track real affiliate conversion:', error);
+      }
+    }
     
     // Attempt to send data to backend
     try {
