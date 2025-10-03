@@ -43,9 +43,7 @@ const TestCashOutButton: React.FC = () => {
       if (result.success) {
         console.log("Test cashout result:", result);
         
-        const sourceMessage = result.source === 'edge_function' ? 
-          'via Supabase Edge Function' : 
-          'via Local Server (fallback)';
+        const sourceMessage = 'via Local Storage';
         
         toast({
           title: "✅ System Test Successful",

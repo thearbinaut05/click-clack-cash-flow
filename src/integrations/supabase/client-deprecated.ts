@@ -74,15 +74,81 @@ const mockSupabaseClient = {
               return Promise.resolve({ data: mockData, error: null });
             }
           })
+        }),
+        lt: (column: string, value: any) => ({
+          then: (callback: (result: MockSupabaseResponse) => void) => {
+            console.warn(`🚨 DEPRECATED: Supabase lt query on '${table}'. Please migrate to LovableCloudService.`);
+            setTimeout(() => callback({ data: [], error: null }), 0);
+            return Promise.resolve({ data: [], error: null });
+          }
+        }),
+        single: () => ({
+          then: (callback: (result: MockSupabaseResponse) => void) => {
+            console.warn(`🚨 DEPRECATED: Supabase single query on '${table}'. Please migrate to LovableCloudService.`);
+            setTimeout(() => callback({ data: null, error: null }), 0);
+            return Promise.resolve({ data: null, error: null });
+          }
         })
+      }),
+      order: (orderColumn: string, options?: any) => ({
+        limit: (limitValue: number) => ({
+          then: (callback: (result: MockSupabaseResponse) => void) => {
+            console.warn(`🚨 DEPRECATED: Supabase order query on '${table}'. Please migrate to LovableCloudService.`);
+            setTimeout(() => callback({ data: [], error: null }), 0);
+            return Promise.resolve({ data: [], error: null });
+          },
+          data: []
+        }),
+        single: () => ({
+          then: (callback: (result: MockSupabaseResponse) => void) => {
+            console.warn(`🚨 DEPRECATED: Supabase single query on '${table}'. Please migrate to LovableCloudService.`);
+            setTimeout(() => callback({ data: null, error: null }), 0);
+            return Promise.resolve({ data: null, error: null });
+          }
+        }),
+        data: []
+      }),
+      limit: (limitValue: number) => ({
+        then: (callback: (result: MockSupabaseResponse) => void) => {
+          console.warn(`🚨 DEPRECATED: Supabase limit query on '${table}'. Please migrate to LovableCloudService.`);
+          setTimeout(() => callback({ data: [], error: null }), 0);
+          return Promise.resolve({ data: [], error: null });
+        },
+        data: []
       })
     }),
     
     insert: (data: any) => ({
+      select: () => ({
+        then: (callback: (result: MockSupabaseResponse) => void) => {
+          console.warn(`🚨 DEPRECATED: Supabase insert+select to '${table}'. Please migrate to LovableCloudService.`);
+          const mockResult = { id: `mock_${Date.now()}`, ...data };
+          setTimeout(() => callback({ data: [mockResult], error: null }), 0);
+          return Promise.resolve({ data: [mockResult], error: null });
+        }
+      }),
       then: (callback: (result: MockSupabaseResponse) => void) => {
         console.warn(`🚨 DEPRECATED: Supabase insert to '${table}' called. Please migrate to LovableCloudService.`);
         setTimeout(() => callback({ data: { id: `mock_${Date.now()}` }, error: null }), 0);
         return Promise.resolve({ data: { id: `mock_${Date.now()}` }, error: null });
+      }
+    }),
+    
+    update: (data: any) => ({
+      eq: (column: string, value: any) => ({
+        then: (callback: (result: MockSupabaseResponse) => void) => {
+          console.warn(`🚨 DEPRECATED: Supabase update on '${table}'. Please migrate to LovableCloudService.`);
+          setTimeout(() => callback({ data: null, error: null }), 0);
+          return Promise.resolve({ data: null, error: null });
+        }
+      })
+    }),
+    
+    upsert: (data: any) => ({
+      then: (callback: (result: MockSupabaseResponse) => void) => {
+        console.warn(`🚨 DEPRECATED: Supabase upsert to '${table}'. Please migrate to LovableCloudService.`);
+        setTimeout(() => callback({ data: null, error: null }), 0);
+        return Promise.resolve({ data: null, error: null });
       }
     })
   }),
@@ -104,6 +170,21 @@ export const supabase = new Proxy(mockSupabaseClient, {
   get(target, prop) {
     if (prop in target) {
       return (target as any)[prop];
+    }
+    
+    // Handle channel() method
+    if (prop === 'channel') {
+      console.warn(`🚨 DEPRECATED: Supabase property 'channel' accessed. Please migrate to LovableCloudService.`);
+      return (name: string) => ({
+        on: () => ({ subscribe: () => {} }),
+        subscribe: () => {}
+      });
+    }
+    
+    // Handle removeChannel() method
+    if (prop === 'removeChannel') {
+      console.warn(`🚨 DEPRECATED: Supabase removeChannel called. Please migrate to LovableCloudService.`);
+      return () => {};
     }
     
     console.warn(`🚨 DEPRECATED: Supabase property '${String(prop)}' accessed. Please migrate to LovableCloudService.`);

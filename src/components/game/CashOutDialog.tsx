@@ -142,10 +142,7 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       }
       
       // Add source information to the message
-      const sourceInfo = result.source === 'edge_function' ? 
-        ' (Processed via Supabase)' : 
-        ' (Processed via local server)';
-      successMessage += sourceInfo;
+      successMessage += ' (Processed locally)';
       
       setSuccess(successMessage);
       
