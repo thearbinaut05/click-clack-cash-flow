@@ -14,7 +14,10 @@ A click-based game with real cash out functionality that allows users to convert
 
 The cash out system allows users to convert their in-game coins to real money using Stripe Connect. The conversion rate is 100 coins = $1 USD.
 
-📖 **[Read the Complete Cashout Flow Guide](CASHOUT_FLOW_GUIDE.md)** - Detailed explanation of what happens after a cashout is sent to the local server, including step-by-step process, troubleshooting, and API reference.
+### Documentation
+
+- 📖 **[Complete Cashout Flow Guide](CASHOUT_FLOW_GUIDE.md)** - Detailed explanation of what happens after a cashout is sent to the local server, including step-by-step process, troubleshooting, and API reference.
+- ⚡ **[Quick Reference](CASHOUT_QUICK_REFERENCE.md)** - TL;DR version with common commands and quick answers to frequent questions.
 
 ### Payout Methods
 
