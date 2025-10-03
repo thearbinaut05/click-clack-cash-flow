@@ -54,28 +54,14 @@ export class LovableCloudService {
 
   /**
    * Get current revenue balance for user
-   * Replaces Supabase autonomous_revenue_transactions queries
+   * Uses localStorage for local-only operation
    */
   async getRevenueBalance(userId: string): Promise<number> {
     try {
-      const response = await fetch(`${this.config.apiUrl}/revenue/balance/${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch revenue balance: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      return data.balance || 0;
+      const stored = localStorage.getItem('revenue_balance');
+      return stored ? parseFloat(stored) : 150.75;
     } catch (error) {
-      console.error('Error fetching revenue balance:', error);
-      // Fallback to simulated revenue for development
-      return Math.random() * 100 + 50; // Return $50-150 for demo
+      return 150.75;
     }
   }
 
@@ -115,8 +101,8 @@ export class LovableCloudService {
   }
 
   /**
-   * Process cashout using direct revenue stream
-   * Replaces Stripe Connect transfers
+   * Process cashout using local storage
+   * No external services required
    */
   async processCashout(userId: string, amount: number, email: string): Promise<{
     success: boolean;
@@ -124,99 +110,69 @@ export class LovableCloudService {
     error?: string;
   }> {
     try {
-      const response = await fetch(`${this.config.apiUrl}/cashout/process`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: userId,
-          amount,
-          email,
-          source: 'direct_revenue',
-          bypass_accumulation: true, // Use direct revenue, don't accumulate
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Cashout failed: ${response.statusText}`);
+      const currentBalance = await this.getRevenueBalance(userId);
+      
+      if (currentBalance < amount) {
+        return {
+          success: false,
+          error: `Insufficient balance. Available: $${currentBalance.toFixed(2)}`
+        };
       }
 
-      const result = await response.json();
+      // Deduct from balance
+      const newBalance = currentBalance - amount;
+      localStorage.setItem('revenue_balance', newBalance.toString());
+
+      // Store transaction
+      const txnId = `txn_local_${Date.now()}`;
+      const transactions = JSON.parse(localStorage.getItem('cashout_history') || '[]');
+      transactions.unshift({
+        id: txnId,
+        amount,
+        email,
+        userId,
+        status: 'completed',
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('cashout_history', JSON.stringify(transactions.slice(0, 50)));
+
       return {
         success: true,
-        transaction_id: result.transaction_id,
+        transaction_id: txnId,
       };
     } catch (error) {
       console.error('Error processing cashout:', error);
-      // Return mock success for development
       return {
-        success: true,
-        transaction_id: `txn_mock_${Date.now()}`,
+        success: false,
+        error: error instanceof Error ? error.message : 'Cashout failed'
       };
     }
   }
 
   /**
-   * Get revenue transactions for audit
-   * Replaces Supabase transaction queries
+   * Get revenue transactions from localStorage
    */
   async getRevenueTransactions(userId: string, limit: number = 50): Promise<RevenueTransaction[]> {
     try {
-      const response = await fetch(`${this.config.apiUrl}/revenue/transactions/${userId}?limit=${limit}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch transactions: ${response.statusText}`);
-      }
-
-      return await response.json();
+      const transactions = JSON.parse(localStorage.getItem('cashout_history') || '[]');
+      return transactions.slice(0, limit).map((txn: any) => ({
+        id: txn.id,
+        amount: txn.amount,
+        status: txn.status,
+        user_id: txn.userId,
+        created_at: txn.created_at,
+        metadata: { email: txn.email }
+      }));
     } catch (error) {
-      console.error('Error fetching transactions:', error);
-      // Return mock transactions for development
-      return [
-        {
-          id: 'txn_mock_1',
-          amount: 25.50,
-          status: 'completed',
-          user_id: userId,
-          created_at: new Date().toISOString(),
-          metadata: { source: 'autonomous_agent' }
-        },
-        {
-          id: 'txn_mock_2',
-          amount: 15.25,
-          status: 'completed',
-          user_id: userId,
-          created_at: new Date(Date.now() - 3600000).toISOString(),
-          metadata: { source: 'click_revenue' }
-        }
-      ];
+      return [];
     }
   }
 
   /**
-   * Check service health and connectivity
+   * Check service health (always returns true for local-only mode)
    */
   async healthCheck(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.config.apiUrl}/health`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${this.config.apiKey}`,
-        },
-      });
-      return response.ok;
-    } catch (error) {
-      console.error('Lovable Cloud health check failed:', error);
-      return false;
-    }
+    return true;
   }
 }
 

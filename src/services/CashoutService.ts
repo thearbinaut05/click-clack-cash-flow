@@ -40,35 +40,24 @@ export class CashoutService {
   }
 
   /**
-   * Process cashout using Lovable Cloud direct revenue system
-   * No Stripe Connected Accounts, no accumulation - direct revenue usage
+   * Process cashout using local-only system
+   * No external services required
    */
   async processCashout(request: CashoutRequest): Promise<CashoutResponse> {
-    console.log('CashoutService: Processing cashout via Lovable Cloud', request);
+    console.log('CashoutService: Processing cashout locally', request);
 
     try {
-      // Calculate cash value (100 coins = $1)
       const cashValue = Math.max(1, request.coins / 100);
-      
-      // Check Lovable Cloud service health first
-      const isHealthy = await this.lovableCloud.healthCheck();
-      if (!isHealthy) {
-        console.warn('Lovable Cloud service unavailable, using fallback');
-        return this.createDemoSuccessResponse(request);
-      }
-
-      // Get current revenue balance to verify funds available
       const revenueBalance = await this.lovableCloud.getRevenueBalance(request.userId);
       
       if (revenueBalance < cashValue) {
         return {
           success: false,
-          error: `Insufficient revenue balance. Available: $${revenueBalance.toFixed(2)}, Requested: $${cashValue.toFixed(2)}`,
-          source: 'lovable_cloud'
+          error: `Insufficient balance. Available: $${revenueBalance.toFixed(2)}, Requested: $${cashValue.toFixed(2)}`,
+          source: 'demo_mode'
         };
       }
 
-      // Process cashout using direct revenue (no accumulation)
       const result = await this.lovableCloud.processCashout(
         request.userId,
         cashValue,
@@ -76,31 +65,31 @@ export class CashoutService {
       );
 
       if (result.success) {
-        console.log('CashoutService: Lovable Cloud cashout succeeded', result);
         return {
           success: true,
-          source: 'lovable_cloud',
-          isReal: true,
+          source: 'demo_mode',
+          isReal: false,
           transaction_id: result.transaction_id,
           autonomous_revenue_balance: Math.max(0, revenueBalance - cashValue),
-          message: `Successfully cashed out $${cashValue.toFixed(2)} via direct revenue to ${request.email}`,
+          message: `Successfully processed $${cashValue.toFixed(2)} cashout to ${request.email}`,
           details: {
             id: result.transaction_id,
             amount: Math.round(cashValue * 100),
             currency: 'usd',
             status: 'completed',
-            revenue_source: 'direct',
-            bypass_accumulation: true
+            payment_method: request.payoutType
           }
         };
-      } else {
-        throw new Error(result.error || 'Lovable Cloud cashout failed');
       }
+
+      throw new Error(result.error || 'Cashout failed');
     } catch (error) {
-      console.error('CashoutService: Lovable Cloud cashout failed', error);
-      
-      // Fallback to demo mode with clear messaging
-      return this.createDemoSuccessResponse(request);
+      console.error('CashoutService: Cashout failed', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Cashout processing failed',
+        source: 'demo_mode'
+      };
     }
   }
 
