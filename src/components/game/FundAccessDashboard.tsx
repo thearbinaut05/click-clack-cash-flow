@@ -48,13 +48,23 @@ const FundAccessDashboard: React.FC = () => {
         return;
       }
       
-      const balanceData = data ? [{
+      let balanceAmount = 0;
+      
+      if (data && typeof data === 'object' && 'balance_amount' in data) {
+        balanceAmount = Number((data as any).balance_amount || 0);
+      } else {
+        // Fallback to localStorage
+        const localBalance = localStorage.getItem('demo_revenue_balance');
+        balanceAmount = localBalance ? parseFloat(localBalance) : 0;
+      }
+      
+      const balanceData = [{
         source_system: 'balance',
-        available_usd: Number(data?.balance_amount || 0),
+        available_usd: balanceAmount,
         pending_usd: 0,
-        total_usd: Number(data?.balance_amount || 0),
+        total_usd: balanceAmount,
         last_updated: new Date().toISOString()
-      }] : [];
+      }];
       
       setFundData(balanceData);
       setLastRefresh(new Date());

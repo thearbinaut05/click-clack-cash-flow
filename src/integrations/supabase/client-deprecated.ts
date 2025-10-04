@@ -79,6 +79,14 @@ const mockSupabaseClient = {
           data: []
         }),
         lt: (column: string, value: any) => ({
+          order: (orderColumn: string, options?: any) => ({
+            then: (callback: (result: MockSupabaseResponse) => void) => {
+              console.warn(`🚨 DEPRECATED: Supabase lt+order query.`);
+              setTimeout(() => callback({ data: [], error: null }), 0);
+              return Promise.resolve({ data: [], error: null });
+            },
+            data: []
+          }),
           then: (callback: (result: MockSupabaseResponse) => void) => {
             console.warn(`🚨 DEPRECATED: Supabase lt query.`);
             setTimeout(() => callback({ data: [], error: null }), 0);
@@ -167,6 +175,16 @@ const mockSupabaseClient = {
   
   rpc: (functionName: string, params?: any) => {
     console.warn(`🚨 DEPRECATED: Supabase RPC '${functionName}' called.`);
+    
+    // Handle check_balance RPC specifically
+    if (functionName === 'check_balance') {
+      const localBalance = localStorage.getItem('demo_revenue_balance') || '0';
+      return Promise.resolve({ 
+        data: { balance_amount: parseFloat(localBalance) }, 
+        error: null 
+      });
+    }
+    
     return Promise.resolve({ data: `mock_rpc_${Date.now()}`, error: null });
   },
   
