@@ -93,18 +93,24 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           payoutType = 'email';
       }
       
-      // Use the CashoutService with fallback logic
-      const cashoutService = CashoutService.getInstance();
-      const result = await cashoutService.processCashout({
-        userId: `user_${Date.now()}`,
-        coins: coins,
-        payoutType: payoutType,
-        email: values.email,
-        metadata: {
-          gameSession: Date.now(),
-          coinCount: coins
+      // Use REAL Supabase edge function for cashout
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      const { data, error } = await supabase.functions.invoke('cashout', {
+        body: {
+          userId: `user_${Date.now()}`,
+          coins: coins,
+          payoutType: payoutType,
+          email: values.email,
+          metadata: {
+            gameSession: Date.now(),
+            coinCount: coins
+          }
         }
       });
+
+      if (error) throw error;
+      const result = { success: true, ...data };
       
       if (!result.success) {
         // If main service fails, queue for offline processing
