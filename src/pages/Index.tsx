@@ -24,7 +24,7 @@ const Index = () => {
 
   useEffect(() => {
     // Subscribe to real-time updates for all critical tables
-    const balanceChannel = realtimeConnection.subscribe('balance-updates', {
+    realtimeConnection.subscribe('balance-updates', {
       config: {
         postgres_changes: [
           { event: '*', schema: 'public', table: 'application_balance' },
@@ -37,7 +37,7 @@ const Index = () => {
     return () => {
       realtimeConnection.unsubscribe('balance-updates');
     };
-  }, [realtimeConnection]);
+  }, [realtimeConnection.subscribe, realtimeConnection.unsubscribe]);
   return (
     <GameProvider>
       <div className="min-h-screen bg-gradient-to-b from-game-deep-blue to-[#09152d] overflow-hidden">

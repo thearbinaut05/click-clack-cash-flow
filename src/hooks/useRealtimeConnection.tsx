@@ -29,8 +29,6 @@ export const useRealtimeConnection = () => {
 
   // Mock subscribe that doesn't use real Supabase channels
   const subscribe = useCallback((channelName: string, config: ChannelConfig) => {
-    console.log('Mock realtime subscription:', channelName);
-    
     setState(prev => ({
       ...prev,
       isConnected: true,
@@ -43,7 +41,6 @@ export const useRealtimeConnection = () => {
   }, []);
 
   const unsubscribe = useCallback((channelName: string) => {
-    console.log('Mock realtime unsubscribe:', channelName);
     
     setState(prev => ({
       ...prev,
@@ -52,7 +49,6 @@ export const useRealtimeConnection = () => {
   }, []);
 
   const reconnect = useCallback(() => {
-    console.log('Mock realtime reconnect');
     setState(prev => ({ ...prev, isReconnecting: false, isConnected: true }));
   }, []);
 
