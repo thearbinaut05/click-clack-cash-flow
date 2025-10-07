@@ -3,6 +3,9 @@ project_id = "tqbybefpnwxukzqkanip"
 [functions.cashout]
 verify_jwt = false
 
+[functions.stripe-webhook]
+verify_jwt = false
+
 [functions.autonomous-agent-swarm]
 verify_jwt = false
 

@@ -8,26 +8,22 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    console.log('Cashout function called - REAL MODE');
+    console.log('🚀 REAL CASHOUT FUNCTION CALLED');
     
-    // Get Stripe secret key from environment
     const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY');
     if (!stripeSecretKey) {
-      throw new Error('STRIPE_SECRET_KEY not configured. Please add it to edge function secrets.');
+      throw new Error('STRIPE_SECRET_KEY not configured');
     }
 
-    // Initialize Stripe
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2023-10-16',
     });
 
-    // Initialize Supabase for database operations
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -36,20 +32,18 @@ serve(async (req) => {
     const body = await req.json();
     const { userId, coins, payoutType, email, metadata } = body;
 
-    console.log('Processing REAL cashout request:', { userId, coins, payoutType, email });
+    console.log('Processing cashout:', { userId, coins, payoutType, email });
 
-    // Validate inputs
     if (!userId || !coins || !payoutType || !email) {
-      throw new Error('Missing required fields: userId, coins, payoutType, email');
+      throw new Error('Missing required fields');
     }
 
-    // Calculate cash value (100 coins = $1)
     const cashValue = Math.max(1, coins / 100);
     const amountInCents = Math.round(cashValue * 100);
 
-    console.log(`Converting ${coins} coins to $${cashValue} (${amountInCents} cents)`);
+    console.log(`Converting ${coins} coins to $${cashValue}`);
 
-    // Check application balance - ensure there's enough autonomous revenue
+    // Check application balance
     const { data: balanceData, error: balanceError } = await supabase
       .from('application_balance')
       .select('balance_amount')
@@ -57,12 +51,10 @@ serve(async (req) => {
       .single();
 
     if (balanceError || !balanceData || balanceData.balance_amount < cashValue) {
-      throw new Error(`Insufficient autonomous revenue balance. Available: $${balanceData?.balance_amount || 0}, Required: $${cashValue}`);
+      throw new Error(`Insufficient balance. Available: $${balanceData?.balance_amount || 0}`);
     }
 
-    console.log(`Application balance sufficient: $${balanceData.balance_amount} >= $${cashValue}`);
-
-    // Deduct from application balance first (before processing payment)
+    // Deduct from application balance
     const { error: deductError } = await supabase
       .from('application_balance')
       .update({ 
@@ -72,60 +64,42 @@ serve(async (req) => {
       .eq('id', 1);
 
     if (deductError) {
-      throw new Error(`Failed to deduct from application balance: ${deductError.message}`);
+      throw new Error(`Failed to deduct balance: ${deductError.message}`);
     }
 
-    console.log(`Deducted $${cashValue} from application balance. New balance: $${balanceData.balance_amount - cashValue}`);
+    console.log(`✅ Deducted $${cashValue}. New balance: $${balanceData.balance_amount - cashValue}`);
 
-    // Check if customer exists in Stripe, create if not
+    // Get or create Stripe customer
     let customer;
     const existingCustomers = await stripe.customers.list({ email, limit: 1 });
     
     if (existingCustomers.data.length > 0) {
       customer = existingCustomers.data[0];
-      console.log('Found existing Stripe customer:', customer.id);
     } else {
       customer = await stripe.customers.create({
         email,
-        metadata: {
-          userId,
-          source: 'game_cashout'
-        }
+        metadata: { userId, source: 'game_cashout' }
       });
-      console.log('Created new Stripe customer:', customer.id);
     }
+
+    console.log('Stripe customer:', customer.id);
 
     let transferResult;
 
-    // Process different payout types with REAL Stripe operations
+    // Process payout
     switch (payoutType) {
       case 'standard':
       case 'email': {
-        // Create a source for the payment (using application balance as source)
-        const source = await stripe.sources.create({
-          type: 'ach_credit_transfer',
-          currency: 'usd',
-          metadata: {
-            source: 'autonomous_revenue',
-            customer_id: customer.id,
-            cashout_amount: cashValue.toString()
-          }
-        });
-
-        // Create a payment intent with the source attached
         const paymentIntent = await stripe.paymentIntents.create({
           amount: amountInCents,
           currency: 'usd',
           customer: customer.id,
           payment_method_types: ['card'],
-          source: source.id,
-          confirm: true,
           metadata: {
             userId,
             coins: coins.toString(),
             type: 'game_cashout',
-            source_id: source.id,
-            autonomous_revenue: 'true'
+            email
           }
         });
 
@@ -134,98 +108,32 @@ serve(async (req) => {
           object: 'payment_intent',
           amount: amountInCents,
           currency: 'usd',
-          description: `Game cashout for ${coins} coins`,
           status: paymentIntent.status,
-          created: paymentIntent.created,
-          method: 'standard',
-          source_id: source.id,
           client_secret: paymentIntent.client_secret
         };
         break;
       }
 
-      case 'virtual-card':
+      case 'virtual_card':
       case 'instant_card': {
-        // Create a virtual card using Stripe Issuing
-        try {
-          const cardHolder = await stripe.issuing.cardholders.create({
-            name: email.split('@')[0],
-            email: email,
-            type: 'individual',
-            billing: {
-              address: {
-                line1: '123 Main St',
-                city: 'Anytown',
-                state: 'CA',
-                postal_code: '12345',
-                country: 'US'
-              }
-            }
-          });
-
-          const virtualCard = await stripe.issuing.cards.create({
-            cardholder: cardHolder.id,
-            currency: 'usd',
-            type: 'virtual',
-            spending_controls: {
-              spending_limits: [
-                {
-                  amount: amountInCents,
-                  interval: 'all_time'
-                }
-              ]
-            }
-          });
-
-          transferResult = {
-            id: virtualCard.id,
-            object: 'virtual_card',
-            amount: amountInCents,
-            currency: 'usd',
-            description: `Virtual card for ${coins} coins`,
-            status: 'active',
-            card_number: virtualCard.number,
-            exp_month: virtualCard.exp_month,
-            exp_year: virtualCard.exp_year,
-            cvc: virtualCard.cvc,
-            method: 'virtual_card'
-          };
-        } catch (error) {
-          console.error('Virtual card creation failed:', error);
-          throw new Error('Virtual card creation not available. Please try standard payment.');
-        }
-        break;
+        throw new Error('Virtual cards require Stripe Issuing. Please use standard payout.');
       }
 
-      case 'bank-card':
-      case 'bank_account': {
-        // For bank transfers, we need to create an actual transfer
-        // This requires the user to have a connected account or external account
-        try {
-          const transfer = await stripe.transfers.create({
-            amount: amountInCents,
-            currency: 'usd',
-            metadata: {
-              userId,
-              coins: coins.toString(),
-              type: 'game_cashout'
-            }
-          });
+      case 'bank_account':
+      case 'bank_card': {
+        const transfer = await stripe.transfers.create({
+          amount: amountInCents,
+          currency: 'usd',
+          metadata: { userId, coins: coins.toString(), type: 'game_cashout' }
+        });
 
-          transferResult = {
-            id: transfer.id,
-            object: 'transfer',
-            amount: amountInCents,
-            currency: 'usd',
-            description: `Bank transfer for ${coins} coins`,
-            status: 'pending',
-            created: transfer.created,
-            method: 'bank_transfer'
-          };
-        } catch (error) {
-          console.error('Bank transfer failed:', error);
-          throw new Error('Bank transfer not available. Please set up bank account first.');
-        }
+        transferResult = {
+          id: transfer.id,
+          object: 'transfer',
+          amount: amountInCents,
+          currency: 'usd',
+          status: 'pending'
+        };
         break;
       }
 
@@ -233,63 +141,44 @@ serve(async (req) => {
         throw new Error(`Unsupported payout type: ${payoutType}`);
     }
 
-    // Log the REAL transaction to database with autonomous revenue tracking
+    // Log to database
     const { error: dbError } = await supabase
-      .from('autonomous_revenue_transfers')
+      .from('real_cashout_requests')
       .insert({
-        amount: cashValue,
-        status: transferResult.status === 'succeeded' ? 'completed' : 'pending',
-        provider: 'stripe',
-        provider_transfer_id: transferResult.id,
+        user_id: userId,
+        amount_usd: cashValue,
+        coins,
+        payout_type: payoutType,
+        email,
+        status: transferResult.status === 'succeeded' ? 'completed' : 'processing',
+        stripe_payment_intent_id: transferResult.id,
+        stripe_customer_id: customer.id,
         metadata: {
           ...metadata,
-          coins,
-          payoutType,
-          email,
-          stripe_customer_id: customer.id,
           transfer_details: transferResult,
-          real_transaction: true,
-          autonomous_revenue_deduction: true,
           pre_balance: balanceData.balance_amount,
           post_balance: balanceData.balance_amount - cashValue
         }
       });
 
     if (dbError) {
-      console.error('Database logging error:', dbError);
-      // Don't fail the transaction for logging errors, but log to audit trail
+      console.error('Database error:', dbError);
+      // Rollback balance
+      await supabase
+        .from('application_balance')
+        .update({ balance_amount: balanceData.balance_amount })
+        .eq('id', 1);
+      throw new Error('Failed to log cashout');
     }
 
-    // Log to transaction audit for compliance
-    const { error: auditError } = await supabase
-      .from('transaction_audit_log')
-      .insert({
-        transaction_id: transferResult.id,
-        transaction_type: 'cashout',
-        amount: cashValue,
-        stripe_transaction_id: transferResult.id,
-        user_email: email,
-        status: transferResult.status === 'succeeded' ? 'completed' : 'pending',
-        audit_details: {
-          autonomous_revenue_source: true,
-          coins_converted: coins,
-          payout_method: payoutType,
-          stripe_details: transferResult
-        },
-        compliance_status: 'approved'
-      });
-
-    if (auditError) {
-      console.error('Audit logging error:', auditError);
-    }
-
-    console.log('REAL cashout processed successfully:', transferResult.id);
+    console.log('✅ REAL CASHOUT COMPLETED:', transferResult.id);
 
     return new Response(JSON.stringify({
       success: true,
       details: transferResult,
-      message: `Successfully processed REAL ${payoutType} cashout of $${cashValue.toFixed(2)} from autonomous revenue`,
+      message: `Successfully processed ${payoutType} cashout of $${cashValue.toFixed(2)}`,
       isReal: true,
+      transaction_id: transferResult.id,
       autonomous_revenue_balance: balanceData.balance_amount - cashValue
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -297,12 +186,11 @@ serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('REAL cashout error:', error);
+    console.error('❌ CASHOUT ERROR:', error);
     
     return new Response(JSON.stringify({
       success: false,
-      error: error instanceof Error ? error.message : 'An unexpected error occurred during real cashout',
-      details: null,
+      error: error instanceof Error ? error.message : 'Cashout failed',
       isReal: true
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

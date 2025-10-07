@@ -96,6 +96,8 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
       // Use REAL Supabase edge function for cashout
       const { supabase } = await import('@/integrations/supabase/client');
       
+      console.log('🚀 Calling real cashout edge function...');
+      
       const { data, error } = await supabase.functions.invoke('cashout', {
         body: {
           userId: `user_${Date.now()}`,
@@ -104,12 +106,18 @@ const CashOutDialog: React.FC<CashOutDialogProps> = ({ open, onOpenChange }) => 
           email: values.email,
           metadata: {
             gameSession: Date.now(),
-            coinCount: coins
+            coinCount: coins,
+            realMoney: true
           }
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Cashout response:', data);
       const result = { success: true, ...data };
       
       if (!result.success) {
