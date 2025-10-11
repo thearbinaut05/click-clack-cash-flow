@@ -1,24 +1,57 @@
 # Click Clack Cash Flow
 
-A click-based game with real cash out functionality that allows users to convert in-game coins to real money using Stripe Connect.
+A click-based game with real cash out functionality that allows users to earn real money through CPA, CPL, and PPC affiliate offers.
+
+## 🎉 NEW: Real Affiliate Payment System
+
+**No more Stripe!** The system now generates revenue through actual affiliate networks:
+- Complete real offers (surveys, app installs, sign-ups)
+- Earn real money tracked in real-time
+- Cash out via PayPal or Payoneer
+- Works with CPALead, OGAds, AdscendMedia, and more!
+
+📖 **[Read the Quick Start Guide](AFFILIATE_QUICK_START.md)** to get started in 5 minutes!
 
 ## Features
 
 - Click-based gameplay with upgrades and power-ups
-- Real money cash out system with multiple payout methods
-- Stripe Connect integration for processing payments
+- **🆕 Real affiliate offer wall** - Complete offers to earn actual money
+- **🆕 Multiple affiliate networks** - CPALead, OGAds, AdscendMedia, CPAGrip, OfferToro
+- **🆕 Real revenue tracking** - Track CPA, CPL, and PPC earnings
+- **🆕 PayPal/Payoneer payouts** - Cash out real earnings (min $5)
 - Comprehensive logging and transaction tracking
-- Multiple payment methods: Standard, Virtual Card, and Bank Card
+- Demo mode for testing without API keys
 
-## Cash Out System
+## 💰 Real Affiliate Payment System
 
-The cash out system allows users to convert their in-game coins to real money using Stripe Connect. The conversion rate is 100 coins = $1 USD.
+### How It Works
+
+1. **Users complete offers** from real affiliate networks (surveys, installs, sign-ups)
+2. **Revenue is tracked** in real-time with conversion status
+3. **Earnings are approved** by networks (usually within 5 minutes to 24 hours)
+4. **Users cash out** via PayPal or Payoneer (minimum $5)
+
+### Supported Networks
+
+- **CPALead** - High-paying CPA offers with instant approval
+- **OGAds** - Content locking and CPA offers
+- **AdscendMedia** - Premium offer walls with high payouts
+- **CPAGrip** - Diverse CPA offers with good fill rates
+- **OfferToro** - Survey and mobile offer specialist
 
 ### Payout Methods
 
-1. **Standard Payment** - Payment sent to user's email via Stripe PaymentIntent
-2. **Virtual Card** - Creates a virtual card with the balance using Stripe Connect
-3. **Bank Card** - Transfers the balance to the user's bank card using Stripe Connect
+1. **PayPal** - Instant transfer to PayPal account
+2. **Payoneer** - Global payment solution for international users
+
+### Demo Mode
+
+No API keys required! The system includes demo offers for testing:
+- Survey Rewards ($0.75)
+- Mobile Game Install ($1.50)
+- Newsletter Sign-up ($0.50)
+- Premium App Trial ($3.00)
+- Credit Card Offer ($25.00)
 
 ## Setup Instructions
 
