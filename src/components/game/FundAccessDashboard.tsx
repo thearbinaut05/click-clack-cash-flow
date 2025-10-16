@@ -311,14 +311,14 @@ const FundAccessDashboard: React.FC = () => {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-muted-foreground">Supabase: </span>
-                  <span className={systemHealth.components.supabase.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
-                    {systemHealth.components.supabase.status}
+                  <span className={systemHealth.components?.supabase?.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
+                    {systemHealth.components?.supabase?.status || 'unknown'}
                   </span>
                 </div>
                 <div>
                   <span className="text-muted-foreground">Stripe: </span>
-                  <span className={systemHealth.components.stripe.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
-                    {systemHealth.components.stripe.status}
+                  <span className={systemHealth.components?.stripe?.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
+                    {systemHealth.components?.stripe?.status || 'unknown'}
                   </span>
                 </div>
               </div>
