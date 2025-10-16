@@ -23,6 +23,7 @@ import { BankConnectionsPanel } from '@/components/dashboard/BankConnectionsPane
 import { RevenueMetricsPanel } from '@/components/dashboard/RevenueMetricsPanel';
 import { CampaignsPanel } from '@/components/dashboard/CampaignsPanel';
 import { WorkerPoolPanel } from '@/components/dashboard/WorkerPoolPanel';
+import { ComprehensiveUSDPanel } from '@/components/dashboard/ComprehensiveUSDPanel';
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
 
@@ -108,7 +109,10 @@ const Index = () => {
               </p>
             </div>
             
-            {/* Top Priority - Fund Access & Revenue Metrics */}
+            {/* Top Priority - Comprehensive USD Overview */}
+            <ComprehensiveUSDPanel />
+            
+            {/* Fund Access & Revenue Metrics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <FundAccessDashboard />
               <RevenueMetricsPanel />
