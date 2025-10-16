@@ -16,6 +16,13 @@ import TransactionRecoveryPanel from "@/components/game/TransactionRecoveryPanel
 import BankAccountSetup from '@/components/game/BankAccountSetup';
 import OfflinePaymentHandler from '@/components/game/OfflinePaymentHandler';
 import { ServerConnectionStatus } from "@/components/game/ServerConnectionStatus";
+import { AccountingJournalPanel } from '@/components/dashboard/AccountingJournalPanel';
+import { CompliancePanel } from '@/components/dashboard/CompliancePanel';
+import { AgentSwarmsPanel } from '@/components/dashboard/AgentSwarmsPanel';
+import { BankConnectionsPanel } from '@/components/dashboard/BankConnectionsPanel';
+import { RevenueMetricsPanel } from '@/components/dashboard/RevenueMetricsPanel';
+import { CampaignsPanel } from '@/components/dashboard/CampaignsPanel';
+import { WorkerPoolPanel } from '@/components/dashboard/WorkerPoolPanel';
 import { useRealtimeConnection } from "@/hooks/useRealtimeConnection";
 import { motion } from 'framer-motion';
 
@@ -93,45 +100,65 @@ const Index = () => {
             className="relative z-10 space-y-8"
           >
             <div className="text-center">
-              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4 animate-pulse">
-                Click Clack Cash Flow
+              <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
+                Autonomous Revenue Management System
               </h1>
-              <p className="text-gray-400 text-lg">
-                Autonomous AI-Powered Revenue Generation System
+              <p className="text-muted-foreground text-lg">
+                AI-Powered Financial Operations Dashboard
               </p>
             </div>
             
-            {/* Fund Access Dashboard - Priority #1 */}
-            <FundAccessDashboard />
-            
-            {/* Revenue Optimization Panel */}
-            <RevenueOptimizationPanel />
-            
-            {/* Transaction Recovery Panel - Critical for ensuring all payments work */}
-            <TransactionRecoveryPanel />
-            
-            {/* Bank Account Setup - Essential for payout destinations */}
-            <BankAccountSetup />
-            
-            {/* Offline Payment Handler - Ensures payments work when offline */}
-            <OfflinePaymentHandler />
-            
-            {/* Revenue & External Accounts */}
+            {/* Top Priority - Fund Access & Revenue Metrics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <AutonomousRevenueDisplay />
-              <AutonomousAgentDashboard />
+              <FundAccessDashboard />
+              <RevenueMetricsPanel />
             </div>
             
-            {/* Server Connection Status */}
-            <ServerConnectionStatus />
+            {/* Financial Operations */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AccountingJournalPanel />
+              <CompliancePanel />
+            </div>
             
-            {/* External Accounts Panel */}
-            <ExternalAccountsPanel />
+            {/* AI Agent Management */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <AgentSwarmsPanel />
+              <AutonomousAgentDashboard />
+              <CampaignsPanel />
+            </div>
             
-            {/* Autopilot Cashout Panel */}
-            <AutopilotCashoutPanel />
+            {/* Worker Pool & Bank Connections */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <WorkerPoolPanel />
+              <BankConnectionsPanel />
+            </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Revenue Operations */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <AutonomousRevenueDisplay />
+              <RevenueOptimizationPanel />
+            </div>
+            
+            {/* External Systems */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <ExternalAccountsPanel />
+              <AutopilotCashoutPanel />
+            </div>
+            
+            {/* Transaction Management */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <TransactionRecoveryPanel />
+              <BankAccountSetup />
+            </div>
+            
+            {/* System Status */}
+            <div className="grid grid-cols-1 gap-6">
+              <ServerConnectionStatus />
+              <OfflinePaymentHandler />
+            </div>
+            
+            {/* Legacy Game Interface (if needed) */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 opacity-50">
               <div className="space-y-6">
                 <StatsSection />
                 <ShopSection />
@@ -147,9 +174,9 @@ const Index = () => {
               </div>
             </div>
             
-            <div className="mt-6 text-center text-xs text-gray-400">
-              <p>Autonomous AI system generating revenue 24/7!</p>
-              <p className="mt-1">No human oversight required - fully automated optimization!</p>
+            <div className="mt-6 text-center text-xs text-muted-foreground">
+              <p>Autonomous AI system managing revenue streams, compliance, and financial operations 24/7</p>
+              <p className="mt-1">Full integration with Chart of Accounts, Compliance Audits, Agent Swarms & All Edge Functions</p>
             </div>
           </motion.div>
         </div>
